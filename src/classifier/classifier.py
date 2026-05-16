@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from pathlib import Path
 
 import anthropic
@@ -42,6 +43,8 @@ def classify_articles(articles: list[dict]) -> list[dict]:
             messages=[{"role": "user", "content": _build_user_message(batch)}],
         )
         raw = message.content[0].text.strip()
+        raw = re.sub(r"^```(?:json)?\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw).strip()
         try:
             batch_results = json.loads(raw)
             results.extend(batch_results)
