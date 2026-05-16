@@ -38,7 +38,7 @@
           <ul class="toc__list">
             {% for article in articles %}
             <li>
-              <a href="#article-{{ loop.index }}">{{ article.title_en | e }}</a>
+              <a href="#article-{{ article.id }}">{{ article.title_en | e }}</a>
             </li>
             {% endfor %}
           </ul>

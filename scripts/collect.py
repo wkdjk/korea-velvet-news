@@ -14,7 +14,7 @@ Triggered by collect.yml on Mon/Wed/Fri KST 07:00 and workflow_dispatch.
 """
 
 import os
-from datetime import date
+from datetime import date, timedelta
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -26,6 +26,23 @@ from src.collector.google_news import search_google_news
 from src.collector.naver import search_naver
 from src.extractor.crawl import extract_body
 
+# Only accept articles published within this many days.
+# Prevents the first run from pulling years of back-history.
+# Override via COLLECT_MAX_DAYS env var.
+_MAX_DAYS = int(os.environ.get("COLLECT_MAX_DAYS", "14"))
+
+
+def _is_recent(article: dict) -> bool:
+    """Return True if article was published within _MAX_DAYS days."""
+    pub = article.get("published_date", "")
+    if not pub:
+        return True  # unknown date: allow through
+    try:
+        cutoff = date.today() - timedelta(days=_MAX_DAYS)
+        return date.fromisoformat(pub) >= cutoff
+    except ValueError:
+        return True
+
 
 def run():
     from src.airtable.client import get_active_keywords
@@ -35,16 +52,21 @@ def run():
         return
 
     print(f"Keywords: {keywords}")
+    print(f"Date filter: last {_MAX_DAYS} days (cutoff {date.today() - timedelta(days=_MAX_DAYS)})")
 
-    # Collect from Naver + Google News
+    # Collect from Naver + Google News (30 results per keyword per source)
     raw_articles = []
     for kw in keywords:
         print(f"  Naver: {kw}")
-        raw_articles.extend(search_naver(kw))
+        raw_articles.extend(search_naver(kw, display=30))
         print(f"  Google News: {kw}")
         raw_articles.extend(search_google_news(kw))
 
     print(f"Raw results: {len(raw_articles)}")
+
+    # Filter by date before dedup to avoid Airtable quota waste
+    raw_articles = [a for a in raw_articles if _is_recent(a)]
+    print(f"After date filter ({_MAX_DAYS}d): {len(raw_articles)}")
 
     # Deduplicate against Airtable and within batch
     new_articles = deduplicate(raw_articles)

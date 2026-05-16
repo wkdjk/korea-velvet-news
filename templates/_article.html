@@ -24,7 +24,7 @@
   {% set formatted_date = article.published_date %}
 {% endif %}
 
-<article id="article-{{ loop.index }}" class="article">
+<article id="article-{{ article.id }}" class="article">
 
   {% if resolved_image %}
   <img
