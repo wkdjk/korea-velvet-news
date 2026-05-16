@@ -26,9 +26,7 @@ def _run(cmd: list[str], cwd: Path = None):
 
 def deploy():
     """Push built site to gh-pages branch."""
-    # Configure git identity for the Actions bot
-    _run(["git", "config", "user.email", "github-actions[bot]@users.noreply.github.com"])
-    _run(["git", "config", "user.name", "github-actions[bot]"])
+    github_token = os.environ.get("GITHUB_TOKEN")
 
     # Prepare deploy directory
     if _DEPLOY_DIR.exists():
@@ -48,11 +46,16 @@ def deploy():
 
     # Init a clean git repo in _deploy and force-push to gh-pages
     _run(["git", "init"], cwd=_DEPLOY_DIR)
+    _run(["git", "config", "user.email", "github-actions[bot]@users.noreply.github.com"], cwd=_DEPLOY_DIR)
+    _run(["git", "config", "user.name", "github-actions[bot]"], cwd=_DEPLOY_DIR)
     _run(["git", "checkout", "-b", "gh-pages"], cwd=_DEPLOY_DIR)
     _run(["git", "add", "."], cwd=_DEPLOY_DIR)
     _run(["git", "commit", "-m", "deploy: update site"], cwd=_DEPLOY_DIR)
 
     remote_url = _run(["git", "remote", "get-url", "origin"])
+    # Inject GITHUB_TOKEN into HTTPS URL so Actions bot can push without interactive auth
+    if github_token:
+        remote_url = remote_url.replace("https://", f"https://x-access-token:{github_token}@")
     _run(["git", "remote", "add", "origin", remote_url], cwd=_DEPLOY_DIR)
     _run(["git", "push", "origin", "gh-pages", "--force"], cwd=_DEPLOY_DIR)
 
