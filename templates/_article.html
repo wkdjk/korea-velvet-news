@@ -35,7 +35,7 @@
   >
   {% endif %}
 
-  <h2 class="article__title">{{ article.title_en | e }}</h2>
+  <h2 class="article__title">{{ article.title_en | sentence_case | e }}</h2>
 
   <p class="article__meta">{{ formatted_date }}&nbsp;&middot;&nbsp;{{ article.source_name | e }}</p>
 
@@ -45,13 +45,13 @@
     {% if '\n\n' in article.body_en %}
       {% for para in article.body_en.split('\n\n') %}
         {% if para.strip() %}
-        <p>{{ para.strip() | e }}</p>
+        <p>{{ para.strip() | e | render_bold | safe }}</p>
         {% endif %}
       {% endfor %}
     {% else %}
       {% for para in article.body_en.split('\n') %}
         {% if para.strip() %}
-        <p>{{ para.strip() | e }}</p>
+        <p>{{ para.strip() | e | render_bold | safe }}</p>
         {% endif %}
       {% endfor %}
     {% endif %}

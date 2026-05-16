@@ -5,6 +5,7 @@ Loads all translated/published articles for the current month,
 renders current_month.html via Jinja2, and writes index.html to /output/.
 """
 
+import re
 from datetime import date
 from pathlib import Path
 
@@ -24,6 +25,31 @@ def _format_date(date_str: str) -> str:
         return f"{d.day} {d.strftime('%B')} {d.year}"
     except Exception:
         return date_str
+
+
+def _sentence_case(s: str) -> str:
+    """Safety-net filter: convert title-case to sentence case.
+    Preserves all-caps acronyms (MFDS, NZ) and mixed-case proper nouns (KGC)."""
+    if not s:
+        return s
+    words = s.split()
+    out = []
+    for i, w in enumerate(words):
+        if i == 0:
+            out.append(w[0].upper() + w[1:] if w else w)
+        elif len(w) > 1 and w[0].isupper() and not w[1:].islower():
+            out.append(w)   # acronym (MFDS) or mixed-case proper noun (KGC)
+        elif w.isupper() and len(w) == 1:
+            out.append(w)   # preserve "I"
+        else:
+            out.append(w.lower())
+    return " ".join(out)
+
+
+def _render_bold(text: str) -> str:
+    """Convert **text** markdown bold to <strong>text</strong>.
+    Must run on already-escaped text; produces trusted HTML."""
+    return re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
 
 
 def _get_current_month_articles() -> list[dict]:
@@ -66,8 +92,9 @@ def generate_html(output_path: Path = None) -> Path:
     today = date.today()
 
     env = Environment(loader=FileSystemLoader(str(_TEMPLATES_DIR)), autoescape=True)
-    # Register date formatter as a filter
     env.filters["format_date"] = _format_date
+    env.filters["sentence_case"] = _sentence_case
+    env.filters["render_bold"] = _render_bold
 
     template = env.get_template("current_month.html")
     html = template.render(

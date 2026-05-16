@@ -45,11 +45,15 @@ def translate_article(article: dict) -> dict:
     Returns dict with title_en, body_en, and glossary_validated (bool).
     On failure returns status 'translate_failed'.
     """
+    body_ko = article.get("body_ko", "") or ""
+    if len(body_ko) < 100:
+        return {"id": article["id"], "status": "translate_failed"}
+
     glossary = get_active_glossary()
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
     system_prompt = _load_system_prompt(glossary)
 
-    user_content = f"Title: {article['title_ko']}\n\nBody:\n{article['body_ko']}"
+    user_content = f"Title: {article['title_ko']}\n\nBody:\n{body_ko}"
     messages = [{"role": "user", "content": user_content}]
 
     for attempt in range(_MAX_RETRIES + 1):

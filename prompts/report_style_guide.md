@@ -55,7 +55,7 @@ Common Korean→English translation pitfalls to watch for:
 | 300–700 words | 1–2 paragraphs |
 | 700+ words | Intro paragraph + key points in flowing prose |
 
-Phase A only: no bullet points, no markdown, no headers inside `body_en`.
+Phase B: `**bold**` is permitted for one or two key phrases per paragraph. No bullet points, no headers inside `body_en`.
 
 ---
 
@@ -94,15 +94,9 @@ No full stop at the end of the source line. No parentheses.
 
 ---
 
-## 8. Phase A Restrictions
+## 8. Phase B Formatting Rules
 
-The following are **NOT permitted** in Phase A `body_en` output:
-
-- Markdown bold (`**text**`)
-- Markdown bullets (`- item`)
-- Markdown headers (`## Heading`)
-- Any HTML tags
-
-Plain text only. Paragraph breaks are represented by double newlines (`\n\n`).
-
-> **Phase B note:** Markdown rendering will be added in Phase B. At that point, the translator prompt and this guide will be updated to permit bold and bullet formatting.
+- Use `**bold**` for one or two key phrases per paragraph.
+- No italics, no headers, no bullet points inside `body_en`.
+- Paragraph breaks: double newline (`\n\n`).
+- The template converts `**text**` → `<strong>text</strong>` automatically.

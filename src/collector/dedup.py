@@ -1,6 +1,9 @@
+import re
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from src.airtable.client import url_exists
+
+_KO_STOP = {'은', '는', '이', '가', '을', '를', '의', '에', '로', '도', '와', '과', '및', '한', '그'}
 
 _TRACKING_PARAMS = {
     "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
@@ -21,6 +24,34 @@ def normalise_url(url: str) -> str:
         clean_query,
         "",
     ))
+
+
+def _title_tokens(title: str) -> frozenset:
+    tokens = re.findall(r'[가-힣a-zA-Z0-9]{2,}', title)
+    return frozenset(t for t in tokens if t not in _KO_STOP)
+
+
+def cluster_by_title(articles: list[dict], threshold: float = 0.5) -> list[dict]:
+    """Remove near-duplicate articles by title token overlap within the same publication date.
+    Keeps the first occurrence; threshold is overlap ratio on the shorter title's tokens."""
+    kept = []
+    for article in articles:
+        tokens = _title_tokens(article.get('title_ko', ''))
+        pub_date = article.get('published_date', '')
+        duplicate = False
+        for prior in kept:
+            if prior.get('published_date', '') != pub_date:
+                continue
+            prior_tokens = _title_tokens(prior.get('title_ko', ''))
+            if not tokens or not prior_tokens:
+                continue
+            overlap = len(tokens & prior_tokens) / min(len(tokens), len(prior_tokens))
+            if overlap >= threshold:
+                duplicate = True
+                break
+        if not duplicate:
+            kept.append(article)
+    return kept
 
 
 def deduplicate(articles: list[dict]) -> list[dict]:

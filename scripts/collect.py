@@ -21,7 +21,7 @@ load_dotenv()
 
 from src.airtable.client import create_record, update_record, batch_update_records
 from src.classifier.classifier import classify_articles
-from src.collector.dedup import deduplicate
+from src.collector.dedup import cluster_by_title, deduplicate
 from src.collector.google_news import search_google_news
 from src.collector.naver import search_naver
 from src.extractor.crawl import extract_body
@@ -71,6 +71,10 @@ def run():
     # Deduplicate against Airtable and within batch
     new_articles = deduplicate(raw_articles)
     print(f"New after dedup: {len(new_articles)}")
+
+    # Remove same-day same-event duplicates by title similarity
+    new_articles = cluster_by_title(new_articles)
+    print(f"After title clustering: {len(new_articles)}")
 
     if not new_articles:
         print("No new articles. Done.")
@@ -122,8 +126,8 @@ def run():
     classify_updates = []
     for cls in classifications:
         score = cls.get("relevance_score", 3)
-        # Phase A: all articles go to pending_review (auto-exclude disabled for first month)
-        status = "pending_review"
+        # Phase B: score >= 4 queued for review; score <= 3 auto-excluded
+        status = "pending_review" if score >= 4 else "auto_excluded"
         classify_updates.append({
             "id": cls["id"],
             "fields": {
