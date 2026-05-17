@@ -133,15 +133,17 @@ def run():
         score = cls.get("relevance_score", 3)
         # Phase B: score >= 4 queued for review; score <= 3 auto-excluded
         status = "pending_review" if score >= 4 else "auto_excluded"
-        classify_updates.append({
-            "id": cls["id"],
-            "fields": {
-                "relevance_score": score,
-                "recommendation": cls.get("recommendation", ""),
-                "tags_internal": cls.get("tags_internal", []),
-                "status": status,
-            },
-        })
+        fields = {
+            "relevance_score": score,
+            "recommendation": cls.get("recommendation", ""),
+            "tags_internal": cls.get("tags_internal", []),
+            "status": status,
+        }
+        if cls.get("cluster_id"):
+            fields["cluster_id"] = cls["cluster_id"]
+        if "is_cluster_rep" in cls:
+            fields["is_cluster_rep"] = bool(cls["is_cluster_rep"])
+        classify_updates.append({"id": cls["id"], "fields": fields})
 
     if classify_updates:
         batch_update_records("Articles", classify_updates)

@@ -1,8 +1,8 @@
 """
-generate.py — Build the main page HTML from Airtable data.
+generate.py — Build the main and archive page HTML from Airtable data.
 
-Loads all translated/published articles for the current month,
-renders current_month.html via Jinja2, and writes index.html to /output/.
+generate_html()         — current month's index.html
+generate_archive_html() — /archive/YYYY-MM/index.html for a past month
 """
 
 import re
@@ -52,10 +52,8 @@ def _render_bold(text: str) -> str:
     return re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
 
 
-def _get_current_month_articles() -> list[dict]:
-    """Fetch translated + published articles for the current month from Airtable."""
-    today = date.today()
-    month_key = today.strftime("%Y-%m")
+def _get_articles_for_month(month_key: str) -> list[dict]:
+    """Fetch translated + published articles for a given YYYY-MM month key."""
     formula = (
         f"AND("
         f"OR({{status}}='translated', {{status}}='published'), "
@@ -78,9 +76,13 @@ def _get_current_month_articles() -> list[dict]:
             "image_attachments": attachments,
             "is_product_news": bool(f.get("is_product_news", False)),
         })
-    # Sort by published_date descending
     articles.sort(key=lambda a: a["published_date"], reverse=True)
     return articles
+
+
+def _get_current_month_articles() -> list[dict]:
+    """Fetch translated + published articles for the current month."""
+    return _get_articles_for_month(date.today().strftime("%Y-%m"))
 
 
 def generate_html(output_path: Path = None) -> Path:
@@ -108,3 +110,38 @@ def generate_html(output_path: Path = None) -> Path:
     output_path.write_text(html, encoding="utf-8")
     print(f"Generated: {output_path} ({len(articles)} articles)")
     return output_path
+
+
+def generate_archive_html(month_key: str, pdf_url: str = "", output_dir: Path = None) -> tuple[Path, list[dict]]:
+    """Render /archive/YYYY-MM/index.html for a past month.
+
+    Args:
+        month_key: 'YYYY-MM' (e.g. '2026-05')
+        pdf_url: public URL of the Airtable-hosted PDF (empty string = fallback to window.print)
+        output_dir: base output directory (default: /output/)
+
+    Returns (output_path, articles) — caller uses article count for Reports row.
+    """
+    if output_dir is None:
+        output_dir = _OUTPUT_DIR
+    archive_path = output_dir / "archive" / month_key / "index.html"
+    archive_path.parent.mkdir(parents=True, exist_ok=True)
+
+    articles = _get_articles_for_month(month_key)
+    month_label = date.fromisoformat(f"{month_key}-01").strftime("%B %Y")
+
+    env = Environment(loader=FileSystemLoader(str(_TEMPLATES_DIR)), autoescape=True)
+    env.filters["format_date"] = _format_date
+    env.filters["sentence_case"] = _sentence_case
+    env.filters["render_bold"] = _render_bold
+
+    template = env.get_template("archive_month.html")
+    html = template.render(
+        month_label=month_label,
+        articles=articles,
+        pdf_url=pdf_url,
+    )
+
+    archive_path.write_text(html, encoding="utf-8")
+    print(f"Archive: {archive_path} ({len(articles)} articles)")
+    return archive_path, articles
