@@ -15,6 +15,7 @@
   >
 
   <link rel="stylesheet" href="static/style.css">
+  <link rel="stylesheet" href="static/_print.css" media="print">
 </head>
 <body>
 
@@ -24,6 +25,7 @@
       <h1 class="site-header__title">Korea Velvet News</h1>
       <p class="site-header__date">As of {{ as_of_date }}</p>
       <p class="site-header__tagline">Korean deer velvet industry news for DINZ</p>
+      <button class="btn-print" onclick="window.print()">Download PDF</button>
     </div>
   </header>
 
@@ -38,7 +40,7 @@
           <ul class="toc__list">
             {% for article in articles %}
             <li>
-              <a href="#article-{{ article.id }}">{{ article.title_en | e }}</a>
+              {% if article.is_product_news %}<span class="product-news-label">Product News</span> {% endif %}<a href="#article-{{ article.id }}">{{ article.title_en | sentence_case | e }}</a>
             </li>
             {% endfor %}
           </ul>

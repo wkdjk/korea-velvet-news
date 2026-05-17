@@ -76,6 +76,7 @@ def _get_current_month_articles() -> list[dict]:
             "url": f.get("url", ""),
             "image_url": f.get("image_url", ""),
             "image_attachments": attachments,
+            "is_product_news": bool(f.get("is_product_news", False)),
         })
     # Sort by published_date descending
     articles.sort(key=lambda a: a["published_date"], reverse=True)

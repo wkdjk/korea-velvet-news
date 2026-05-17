@@ -296,6 +296,45 @@ img {
   line-height: 1.6;
 }
 
+/* --- Download PDF button --- */
+.btn-print {
+  display: inline-block;
+  margin-top: var(--space-xs);
+  font-family: var(--font-heading);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #FFFFFF;
+  background: transparent;
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
+  padding: 0.3rem 0.9rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-print:hover,
+.btn-print:focus {
+  background-color: rgba(255, 255, 255, 0.15);
+  border-color: #FFFFFF;
+}
+
+/* --- Product News label --- */
+.product-news-label {
+  display: inline-block;
+  font-family: var(--font-heading);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #FFFFFF;
+  background-color: var(--color-primary);
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-sm);
+  margin-right: 0.4rem;
+  vertical-align: middle;
+}
+
 /* --- Responsive: small screens (≤ 540px) --- */
 @media (max-width: 540px) {
   :root {

@@ -22,6 +22,7 @@ load_dotenv()
 from src.airtable.client import create_record, update_record, batch_update_records
 from src.classifier.classifier import classify_articles
 from src.collector.dedup import cluster_by_title, deduplicate
+from src.collector.google_alerts import search_google_alerts
 from src.collector.google_news import search_google_news
 from src.collector.naver import search_naver
 from src.extractor.crawl import extract_body
@@ -61,6 +62,10 @@ def run():
         raw_articles.extend(search_naver(kw, display=30))
         print(f"  Google News: {kw}")
         raw_articles.extend(search_google_news(kw))
+
+    # Collect from Google Alerts RSS feeds (keyword-independent, no loop)
+    print("  Google Alerts RSS...")
+    raw_articles.extend(search_google_alerts())
 
     print(f"Raw results: {len(raw_articles)}")
 

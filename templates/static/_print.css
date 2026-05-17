@@ -1,0 +1,110 @@
+/* ============================================================
+   Korea Velvet News — _print.css
+   Applied only when printing or saving as PDF (media="print").
+   Hides interactive elements; formats content for A4/letter.
+   ============================================================ */
+
+@media print {
+
+  /* --- Page setup --- */
+  @page {
+    size: A4 portrait;
+    margin: 18mm 20mm 18mm 20mm;
+  }
+
+  /* --- Hide non-content elements --- */
+  .footer-submit,
+  .site-footer,
+  .article__source-line,
+  .btn-print {
+    display: none !important;
+  }
+
+  /* --- Reset colours for print --- */
+  body {
+    font-size: 10pt;
+    line-height: 1.55;
+    color: #000;
+    background: #fff;
+  }
+
+  a {
+    color: #000;
+    text-decoration: none;
+  }
+
+  /* --- Site header: minimal for print --- */
+  .site-header {
+    background: #fff !important;
+    color: #000 !important;
+    border-bottom: 2pt solid #000;
+    padding: 6pt 0 8pt;
+  }
+
+  .site-header__title {
+    color: #000 !important;
+    font-size: 16pt;
+  }
+
+  .site-header__date,
+  .site-header__tagline {
+    color: #333 !important;
+    opacity: 1 !important;
+    font-size: 8pt;
+  }
+
+  /* --- TOC --- */
+  .toc {
+    background: #f5f5f5;
+    border-left: 3pt solid #2D5A27;
+    page-break-inside: avoid;
+    margin: 10pt 0 14pt;
+    padding: 8pt 10pt;
+  }
+
+  .toc__heading {
+    font-size: 7pt;
+    color: #2D5A27 !important;
+  }
+
+  .toc__list a {
+    color: #000;
+  }
+
+  /* --- Articles --- */
+  .article {
+    page-break-inside: avoid;
+    border-bottom: 0.5pt solid #ccc;
+    padding: 10pt 0;
+  }
+
+  .article__title {
+    font-size: 12pt;
+    color: #000;
+  }
+
+  .article__meta {
+    font-size: 7.5pt;
+    color: #555;
+  }
+
+  .article__body {
+    font-size: 9.5pt;
+    line-height: 1.5;
+  }
+
+  .article__image {
+    max-height: 180pt;
+    width: auto;
+    margin-bottom: 8pt;
+  }
+
+  /* --- Product News label --- */
+  .product-news-label {
+    background: #2D5A27;
+    color: #fff !important;
+    font-size: 6.5pt;
+    padding: 1pt 4pt;
+    border-radius: 2pt;
+  }
+}
