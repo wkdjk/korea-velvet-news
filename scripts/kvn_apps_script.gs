@@ -318,11 +318,7 @@ function installTriggers() {
   if (!formId) {
     Logger.log('[WARN] KVN_FORM_ID named range not found or empty.');
     Logger.log('       Run createKVNForm() first, then re-run installTriggers().');
-    SpreadsheetApp.getUi().alert(
-      'Could not find KVN Form ID.\n\n' +
-      'Please run createKVNForm() first (from create_kvn_form.gs),\n' +
-      'then run installTriggers() again.'
-    );
+    Logger.log('[ERROR] Run createKVNForm() first, then re-run installTriggers().');
     return;
   }
 
@@ -333,12 +329,10 @@ function installTriggers() {
     .create();
   Logger.log('Installed FormSubmit trigger → onKVNFormSubmit (form: ' + formId + ')');
 
-  SpreadsheetApp.getUi().alert(
-    'Triggers installed successfully!\n\n' +
-    '1. onArticleApproved  — onEdit (this spreadsheet)\n' +
-    '2. onKVNFormSubmit    — FormSubmit (KVN submission form)\n\n' +
-    'Check Extensions → Apps Script → Triggers to confirm.'
-  );
+  Logger.log('=== installTriggers() COMPLETE ===');
+  Logger.log('1. onArticleApproved — onEdit (spreadsheet)');
+  Logger.log('2. onKVNFormSubmit   — FormSubmit (KVN form)');
+  Logger.log('Check Extensions → Apps Script → Triggers to confirm.');
 }
 
 

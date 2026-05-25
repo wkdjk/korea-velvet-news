@@ -87,10 +87,5 @@ function createKVNForm() {
     ss.setNamedRange('KVN_FORM_ID', cell);
   }
 
-  SpreadsheetApp.getUi().alert(
-    'KVN Form Created!\n\n' +
-    'Submit URL:\n' + formUrl + '\n\n' +
-    'Form ID stored in named range KVN_FORM_ID.\n' +
-    'Now run installTriggers() from kvn_apps_script.gs.'
-  );
+  Logger.log('=== DONE — copy the Submit URL above and run installTriggers() next. ===');
 }

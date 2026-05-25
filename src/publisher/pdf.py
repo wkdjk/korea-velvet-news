@@ -1,72 +1,33 @@
 """
-pdf.py — Generate a monthly PDF from the archive page and log it to Airtable Reports.
+pdf.py — Generate a monthly PDF from the archive page and log it to the Reports sheet.
 
 Called once per month, on the 1st, during the build pipeline.
 Workflow:
-  1. Write the archive HTML to a temp file
-  2. Use Playwright headless browser to convert HTML → PDF
-  3. Upload PDF to Airtable Reports table as an attachment
-  4. Set status=pending_send → Airtable Automation sends the email
+  1. Write the archive HTML to a temp file.
+  2. Use Playwright headless browser to convert HTML → PDF.
+  3. Save PDF to data/pdfs/ in the repo.
+  4. Create a row in the Reports sheet (Google Sheets via src.airtable.client).
 
 Requires: playwright (pip install playwright && playwright install chromium)
 """
 
-import os
 import tempfile
 from datetime import date
 from pathlib import Path
 
-import requests
-
-from src.airtable.client import create_record, update_record
+from src.airtable.client import create_record
 
 
-def _upload_attachment(record_id: str, field: str, filename: str, pdf_bytes: bytes) -> str:
-    """Upload pdf_bytes as an attachment to an Airtable record field.
-
-    Returns the public URL of the uploaded file, or '' on failure.
-    """
-    token = os.environ["AIRTABLE_TOKEN"]
-    base_id = os.environ["AIRTABLE_BASE_ID"]
-    url = f"https://content.airtable.com/v0/{base_id}/{record_id}/{field}/uploadAttachment"
-    resp = requests.post(
-        url,
-        headers={"Authorization": f"Bearer {token}"},
-        json={"contentType": "application/pdf", "filename": filename, "file": None},
-    )
-    # Airtable attachment upload requires multipart; use the standard REST approach
-    upload_url = f"https://api.airtable.com/v0/{base_id}/Reports/{record_id}"
-    patch_resp = requests.patch(
-        upload_url,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "fields": {
-                field: [{"url": f"data:application/pdf;base64,{_b64(pdf_bytes)}", "filename": filename}]
-            }
-        },
-    )
-    if patch_resp.ok:
-        attachments = patch_resp.json().get("fields", {}).get(field, [])
-        if attachments:
-            return attachments[0].get("url", "")
-    return ""
-
-
-def _b64(data: bytes) -> str:
-    import base64
-    return base64.b64encode(data).decode("utf-8")
+_PDF_DIR = Path(__file__).parent.parent.parent / "data" / "pdfs"
 
 
 def generate_monthly_pdf(archive_html: str, month: str, article_count: int) -> bool:
-    """Convert archive_html string to PDF and log to Airtable Reports.
+    """Convert archive_html string to PDF and log to Reports sheet.
 
     Args:
-        archive_html: fully rendered HTML of the archive page for this month
-        month: 'YYYY-MM' string (e.g. '2026-05')
-        article_count: number of articles in this month
+        archive_html:   Fully rendered HTML of the archive page for this month.
+        month:          'YYYY-MM' string (e.g. '2026-05').
+        article_count:  Number of articles in this month.
 
     Returns True on success, False on failure.
     """
@@ -103,51 +64,26 @@ def generate_monthly_pdf(archive_html: str, month: str, article_count: int) -> b
 
     print(f"  PDF generated: {len(pdf_bytes):,} bytes")
 
-    # Create Reports row (status=pending_send triggers Airtable Automation email)
+    # Save PDF locally to data/pdfs/
     try:
-        record = create_record("Reports", {
+        _PDF_DIR.mkdir(parents=True, exist_ok=True)
+        pdf_path = _PDF_DIR / filename
+        pdf_path.write_bytes(pdf_bytes)
+        print(f"  PDF saved: {pdf_path}")
+    except Exception as e:
+        print(f"  PDF: save error: {e}")
+        # Non-fatal — continue to log to Sheets
+
+    # Create Reports row in Google Sheets
+    try:
+        create_record("Reports", {
             "month": month,
             "article_count": article_count,
             "status": "pending_send",
         })
-        record_id = record["id"]
+        print(f"  Reports row created for {month} ({article_count} articles).")
     except Exception as e:
-        print(f"  PDF: Airtable Reports row creation failed: {e}")
-        return False
-
-    # Upload PDF as attachment via direct Airtable REST patch
-    token = os.environ["AIRTABLE_TOKEN"]
-    base_id = os.environ["AIRTABLE_BASE_ID"]
-    patch_url = f"https://api.airtable.com/v0/{base_id}/Reports/{record_id}"
-
-    try:
-        resp = requests.patch(
-            patch_url,
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "fields": {
-                    "pdf_file": [
-                        {
-                            "url": f"data:application/pdf;base64,{_b64(pdf_bytes)}",
-                            "filename": filename,
-                        }
-                    ]
-                }
-            },
-        )
-        resp.raise_for_status()
-        attachments = resp.json().get("fields", {}).get("pdf_file", [])
-        public_url = attachments[0].get("url", "") if attachments else ""
-        if public_url:
-            update_record("Reports", record_id, {"pdf_public_url": public_url})
-            print(f"  PDF uploaded to Airtable Reports: {record_id}")
-        else:
-            print("  PDF: attachment uploaded but public URL not returned")
-    except Exception as e:
-        print(f"  PDF: attachment upload failed: {e}")
+        print(f"  PDF: Reports row creation failed: {e}")
         return False
 
     return True

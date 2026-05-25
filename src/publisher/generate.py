@@ -15,7 +15,8 @@ from src.airtable.client import get_records
 
 _TEMPLATES_DIR = Path(__file__).parent.parent.parent / "templates"
 _OUTPUT_DIR = Path(__file__).parent.parent.parent / "output"
-_FORM_URL = "https://airtable.com/appovMgZeAduoscP0/shr96xJ5xmOAtucFS"
+# KVN Google Form submission URL — update once the form public URL is confirmed.
+_FORM_URL = ""
 
 
 def _format_date(date_str: str) -> str:
