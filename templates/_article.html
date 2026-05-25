@@ -1,8 +1,6 @@
 {#
   _article.html — Article partial for Korea Velvet News
   Included inside {% for article in articles %} in current_month.html.
-  Loop variables (loop.index etc.) are available because this is a simple include.
-  Phase A: plain text body only, no markdown rendering.
 #}
 
 {# --- Resolve image URL --- #}
@@ -24,7 +22,14 @@
   {% set formatted_date = article.published_date %}
 {% endif %}
 
-<article id="article-{{ article.id }}" class="article">
+{# --- Category slug for CSS class and data attribute --- #}
+{% set cat_slug = article.category | lower | replace(' ', '-') | replace('&', '') | replace('--', '-') %}
+
+<article
+  id="article-{{ article.id }}"
+  class="article"
+  data-category="{{ article.category | e }}"
+>
 
   {% if resolved_image %}
   <img
@@ -35,14 +40,21 @@
   >
   {% endif %}
 
-  {% if article.is_product_news %}<span class="product-news-label">Product News</span>{% endif %}
-  <h2 class="article__title">{{ article.title_en | sentence_case | e }}</h2>
+  {# --- Category + Product News labels --- #}
+  <div class="article__labels">
+    {% if article.category %}
+    <span class="category-tag category-tag--{{ cat_slug }}">{{ article.category | e }}</span>
+    {% endif %}
+    {% if article.is_product_news %}
+    <span class="product-news-label">Product News</span>
+    {% endif %}
+  </div>
+
+  <h2 class="article__title">{{ article.title_en | e }}</h2>
 
   <p class="article__meta">{{ formatted_date }}&nbsp;&middot;&nbsp;{{ article.source_name | e }}</p>
 
   <div class="article__body">
-    {# Split plain text on double newlines for paragraph breaks.
-       Fall back to single newlines if no double newlines present. #}
     {% if '\n\n' in article.body_en %}
       {% for para in article.body_en.split('\n\n') %}
         {% if para.strip() %}
@@ -58,13 +70,25 @@
     {% endif %}
   </div>
 
-  <p class="article__source-line">
+  {# --- Why it matters block --- #}
+  {% if article.why_it_matters %}
+  <div class="article__why">
+    <span class="article__why-label">Why it matters</span>
+    {{ article.why_it_matters | e }}
+  </div>
+  {% endif %}
+
+  {# --- Source + Read link row --- #}
+  <div class="article__footer">
+    {% if article.source_attribution %}
+    <span class="article__source-attr">{{ article.source_attribution | e }}</span>
+    {% endif %}
     <a
       class="article__read-link"
       href="{{ article.url | e }}"
       target="_blank"
       rel="noopener noreferrer"
     >Read original &rarr;</a>
-  </p>
+  </div>
 
 </article>

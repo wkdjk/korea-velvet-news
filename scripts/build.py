@@ -60,12 +60,16 @@ def run():
             translate_updates.append({
                 "id": record["id"],
                 "fields": {
-                    "title_en": result["title_en"],
-                    "body_en": result["body_en"],
-                    "status": "translated",
+                    "title_en":          result.get("title_en", ""),
+                    "body_en":           result.get("body_en", ""),
+                    "why_it_matters":    result.get("why_it_matters", ""),
+                    "source_attribution":result.get("source_attribution", ""),
+                    "category":          result.get("category", "Market Trends"),
+                    "glossary_validated":result.get("glossary_validated", False),
+                    "status":            "translated",
                 },
             })
-            print(f"  Translated: {record['id']}")
+            print(f"  Translated: {record['id']} [{result.get('category', '')}]")
 
     if translate_updates:
         batch_update_records("Articles", translate_updates)

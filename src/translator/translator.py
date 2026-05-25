@@ -70,7 +70,13 @@ def translate_article(article: dict) -> dict:
         except json.JSONDecodeError:
             if attempt < _MAX_RETRIES:
                 messages.append({"role": "assistant", "content": raw})
-                messages.append({"role": "user", "content": "Your response was not valid JSON. Return JSON only: {\"title_en\": \"...\", \"body_en\": \"...\"}"})
+                messages.append({
+                    "role": "user",
+                    "content": (
+                        'Your response was not valid JSON. Return JSON only with keys: '
+                        '"title_en", "body_en", "why_it_matters", "source_attribution", "category".'
+                    ),
+                })
                 continue
             return {"id": article["id"], "status": "translate_failed"}
 
@@ -78,8 +84,11 @@ def translate_article(article: dict) -> dict:
         if not missing:
             return {
                 "id": article["id"],
-                "title_en": result["title_en"],
-                "body_en": result["body_en"],
+                "title_en": result.get("title_en", ""),
+                "body_en": result.get("body_en", ""),
+                "why_it_matters": result.get("why_it_matters", ""),
+                "source_attribution": result.get("source_attribution", ""),
+                "category": result.get("category", "Market Trends"),
                 "glossary_validated": True,
             }
 

@@ -352,6 +352,141 @@ img {
   vertical-align: middle;
 }
 
+/* --- Category Filter Bar --- */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: var(--space-lg) 0 var(--space-md);
+}
+
+.filter-btn {
+  font-family: var(--font-heading);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: 1.5px solid var(--color-border);
+  border-radius: 2rem;
+  padding: 0.3rem 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.filter-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.filter-btn--active {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #FFFFFF;
+}
+
+.filter-count {
+  display: inline-block;
+  background: rgba(255,255,255,0.25);
+  border-radius: 1rem;
+  padding: 0 0.4rem;
+  font-size: 0.7rem;
+  margin-left: 0.2rem;
+  vertical-align: middle;
+}
+
+.filter-btn:not(.filter-btn--active) .filter-count {
+  background: var(--color-border);
+  color: var(--color-text-muted);
+}
+
+/* --- Article labels row (category + product news) --- */
+.article__labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
+/* --- Category Tags --- */
+.category-tag {
+  display: inline-block;
+  font-family: var(--font-heading);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.55rem;
+  border-radius: var(--radius-sm);
+  vertical-align: middle;
+}
+
+/* 6-category palette — distinct but harmonious with DINZ green */
+.category-tag--regulation--policy   { background: #EAF0FB; color: #1A4FA0; }
+.category-tag--market-trends         { background: #E8F5E9; color: #2D5A27; }
+.category-tag--products--brands      { background: #FFF3E0; color: #9E5500; }
+.category-tag--trade--distribution   { background: #F3E5F5; color: #6A1B9A; }
+.category-tag--research--health      { background: #E0F7FA; color: #00696F; }
+.category-tag--traditional-medicine  { background: #FCE4EC; color: #880E4F; }
+
+/* --- "Why it matters" block --- */
+.article__why {
+  margin-top: var(--space-sm);
+  padding: 0.6rem var(--space-sm);
+  background: #F0F7EE;
+  border-left: 3px solid var(--color-primary);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-family: var(--font-heading);
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--color-text);
+}
+
+.article__why-label {
+  font-weight: 700;
+  color: var(--color-primary);
+  margin-right: 0.4rem;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+}
+
+/* --- Article footer: source + read link row --- */
+.article__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: var(--space-sm);
+}
+
+.article__source-attr {
+  font-family: var(--font-heading);
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* --- Site header meta line --- */
+.site-header__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.site-header__meta {
+  font-family: var(--font-heading);
+  font-size: 0.82rem;
+  font-weight: 400;
+  opacity: 0.85;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  margin-top: 0.2rem;
+}
+
 /* --- Responsive: small screens (≤ 540px) --- */
 @media (max-width: 540px) {
   :root {

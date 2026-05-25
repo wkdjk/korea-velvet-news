@@ -6,7 +6,6 @@
   <title>Korea Velvet News — {{ month_label }}</title>
   <meta name="description" content="Korean deer velvet industry news digest for DINZ — {{ month_label }}.">
 
-  <!-- Google Fonts: Merriweather (body) + Lato (headings/UI) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
@@ -22,10 +21,20 @@
   <!-- ===== Site Header ===== -->
   <header class="site-header">
     <div class="container">
-      <h1 class="site-header__title">Korea Velvet News</h1>
-      <p class="site-header__date">As of {{ as_of_date }}</p>
+      <div class="site-header__top">
+        <h1 class="site-header__title">Korea Velvet News</h1>
+        <button class="btn-print" onclick="window.print()">Download PDF</button>
+      </div>
+      <p class="site-header__meta">
+        {{ month_label }}
+        &nbsp;·&nbsp;
+        {% if article_count == 0 %}No articles yet
+        {% elif article_count == 1 %}1 article
+        {% else %}{{ article_count }} articles{% endif %}
+        &nbsp;·&nbsp;
+        As of {{ as_of_date }}
+      </p>
       <p class="site-header__tagline">Korean deer velvet industry news for DINZ</p>
-      <button class="btn-print" onclick="window.print()">Download PDF</button>
     </div>
   </header>
 
@@ -34,20 +43,31 @@
 
       {% if articles %}
 
+        <!-- ===== Category Filter Bar ===== -->
+        {% if categories | length > 1 %}
+        <nav class="filter-bar" aria-label="Filter by category">
+          <button class="filter-btn filter-btn--active" data-filter="all">All <span class="filter-count">{{ article_count }}</span></button>
+          {% for cat in categories %}
+          {% set cat_slug = cat | lower | replace(' ', '-') | replace('&', '') | replace('--', '-') %}
+          <button class="filter-btn" data-filter="{{ cat | e }}">{{ cat | e }}</button>
+          {% endfor %}
+        </nav>
+        {% endif %}
+
         <!-- ===== Table of Contents ===== -->
         <section class="toc" aria-label="This month's articles">
           <p class="toc__heading">This month: {{ month_label }}</p>
-          <ul class="toc__list">
+          <ul class="toc__list" id="toc-list">
             {% for article in articles %}
-            <li>
-              {% if article.is_product_news %}<span class="product-news-label">Product News</span> {% endif %}<a href="#article-{{ article.id }}">{{ article.title_en | sentence_case | e }}</a>
+            <li data-category="{{ article.category | e }}">
+              <a href="#article-{{ article.id }}">{{ article.title_en | e }}</a>
             </li>
             {% endfor %}
           </ul>
         </section>
 
         <!-- ===== Articles ===== -->
-        <section class="articles" aria-label="Articles">
+        <section class="articles" aria-label="Articles" id="articles-section">
           {% for article in articles %}
             {% include '_article.html' %}
           {% endfor %}
@@ -55,10 +75,7 @@
 
       {% else %}
 
-        <!-- ===== Empty State ===== -->
-        <p class="empty-state">
-          No articles published this month yet. Check back tomorrow.
-        </p>
+        <p class="empty-state">No articles published this month yet. Check back tomorrow.</p>
 
       {% endif %}
 
@@ -66,6 +83,7 @@
   </main>
 
   <!-- ===== Submit URL Footer ===== -->
+  {% if form_url %}
   <footer class="footer-submit">
     <div class="container">
       <p>Spotted a relevant article? Submit the URL &rarr;</p>
@@ -74,14 +92,54 @@
       </a>
     </div>
   </footer>
+  {% endif %}
 
   <!-- ===== Site Footer ===== -->
   <footer class="site-footer">
     <div class="container">
       <p>Korea Velvet News is maintained by DINZ Korea.</p>
-      <p>Updated daily.</p>
+      <p>Updated daily. Articles sourced from Korean news media, translated by Claude AI.</p>
     </div>
   </footer>
+
+  <!-- ===== Category Filter Script ===== -->
+  <script>
+    (function () {
+      var buttons = document.querySelectorAll('.filter-btn');
+      var articles = document.querySelectorAll('.article');
+      var tocItems = document.querySelectorAll('#toc-list li');
+
+      if (!buttons.length) return;
+
+      buttons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var filter = btn.getAttribute('data-filter');
+
+          // Update active button
+          buttons.forEach(function (b) { b.classList.remove('filter-btn--active'); });
+          btn.classList.add('filter-btn--active');
+
+          // Show/hide articles
+          articles.forEach(function (art) {
+            if (filter === 'all' || art.getAttribute('data-category') === filter) {
+              art.style.display = '';
+            } else {
+              art.style.display = 'none';
+            }
+          });
+
+          // Show/hide ToC items
+          tocItems.forEach(function (li) {
+            if (filter === 'all' || li.getAttribute('data-category') === filter) {
+              li.style.display = '';
+            } else {
+              li.style.display = 'none';
+            }
+          });
+        });
+      });
+    })();
+  </script>
 
 </body>
 </html>

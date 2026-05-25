@@ -25,33 +25,36 @@
 // These must match the column order produced by format_articles_sheet.py.
 
 var COL = {
-  APPROVED:       0,   // A
-  TITLE_KO:       1,   // B
-  STATUS:         2,   // C
-  PUBLISHED_DATE: 3,   // D
-  SOURCE_NAME:    4,   // E
-  RELEVANCE_SCORE:5,   // F
-  IS_PRODUCT_NEWS:6,   // G
-  URL:            7,   // H
-  RECOMMENDATION: 8,   // I
-  IS_CLUSTER_REP: 9,   // J
-  CLUSTER_ID:     10,  // K
-  INPUT_TYPE:     11,  // L
-  BODY_KO:        12,  // M
-  TITLE_EN:       13,  // N
-  BODY_EN:        14,  // O
-  SOURCE_TYPE:    15,  // P
-  TAGS_INTERNAL:  16,  // Q
-  IMAGE_URL:      17,  // R
-  PHOTO_DRIVE_URL:18,  // S
-  DIRECT_TEXT:    19,  // T
-  MONTH_KEY:      20,  // U
-  GLOSSARY_VALIDATED: 21, // V
-  CLASSIFIER_FEEDBACK: 22, // W
-  ID:             23,  // X
+  APPROVED:           0,   // A
+  TITLE_KO:           1,   // B
+  STATUS:             2,   // C
+  PUBLISHED_DATE:     3,   // D
+  SOURCE_NAME:        4,   // E
+  RELEVANCE_SCORE:    5,   // F
+  IS_PRODUCT_NEWS:    6,   // G
+  URL:                7,   // H
+  RECOMMENDATION:     8,   // I
+  IS_CLUSTER_REP:     9,   // J
+  CLUSTER_ID:         10,  // K
+  INPUT_TYPE:         11,  // L
+  BODY_KO:            12,  // M
+  TITLE_EN:           13,  // N
+  BODY_EN:            14,  // O
+  WHY_IT_MATTERS:     15,  // P  ← new (Phase C)
+  SOURCE_ATTRIBUTION: 16,  // Q  ← new (Phase C)
+  CATEGORY:           17,  // R  ← new (Phase C)
+  SOURCE_TYPE:        18,  // S
+  TAGS_INTERNAL:      19,  // T
+  IMAGE_URL:          20,  // U
+  PHOTO_DRIVE_URL:    21,  // V
+  DIRECT_TEXT:        22,  // W
+  MONTH_KEY:          23,  // X
+  GLOSSARY_VALIDATED: 24,  // Y
+  CLASSIFIER_FEEDBACK:25,  // Z
+  ID:                 26,  // AA
 };
 
-var TOTAL_COLS = 24;  // Must equal length of NEW_COLUMN_ORDER in format_articles_sheet.py.
+var TOTAL_COLS = 27;  // Must equal length of ARTICLES_HEADERS in setup_sheets.py.
 
 // Statuses that must not be reverted by unchecking 'approved'.
 var PROTECTED_STATUSES = ['published', 'translated'];

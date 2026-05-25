@@ -94,6 +94,21 @@ Rules:
 
 ---
 
+## Category
+
+Assign exactly one category from the following list — choose the one that best describes the article's primary trade relevance to DINZ:
+
+- **Market Trends** — demand patterns, retail performance, export/import volumes, pricing
+- **Regulation & Policy** — government rulings, MFDS/KFDA decisions, import standards, certification
+- **Products & Brands** — product launches, SKU changes, brand activity, ingredient updates
+- **Research & Health** — clinical studies, health claims, academic findings
+- **Trade & Distribution** — distribution channels, logistics, wholesale, retail partnerships
+- **Traditional Medicine** — Korean medicine practice, TCM trends, practitioners, clinics
+
+If the article does not fit any category, use **Market Trends** as the default.
+
+---
+
 ## Output Format
 
 Return JSON only. Use the following structure:
@@ -101,10 +116,17 @@ Return JSON only. Use the following structure:
 ```json
 {
   "title_en": "...",
-  "body_en": "...\n\nWhy it matters: ...\n\nSource: [Outlet name], [Day Month Year]"
+  "body_en": "...",
+  "why_it_matters": "...",
+  "source_attribution": "Source: [Full outlet name in English], [Day Month Year]",
+  "category": "..."
 }
 ```
 
-The `body_en` field must contain the full translated body, followed by a blank line, then the "Why it matters" line, followed by a blank line, then the source attribution line.
+Field rules:
+- `body_en`: the translated article body only — no "Why it matters" line, no source line embedded inside.
+- `why_it_matters`: the relevance sentence only, without the "Why it matters:" label prefix. ≤25 words.
+- `source_attribution`: exactly `Source: [Full outlet name], [Day Month Year]` — no full stop.
+- `category`: exactly one of the six category strings listed above.
 
 Do not include any preamble, explanation, commentary, or markdown fencing around the JSON. The response must begin with `{` and end with `}`.
