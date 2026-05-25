@@ -105,11 +105,11 @@ function _getHeaderMap(sheet) {
 /**
  * onKVNFormSubmit — called by a FormSubmit trigger installed via installTriggers().
  *
- * Expected form fields (by title):
- *   "입력 유형"       → dropdown: "기사 URL" | "직접 텍스트 입력" | "사진 Drive URL"
- *   "기사 URL"        → short text
- *   "직접 입력 텍스트" → paragraph text
- *   "사진 Drive URL"  → short text
+ * Expected form fields (by title — bilingual):
+ *   "Input type / 입력 유형"       → dropdown (3 options)
+ *   "Article URL / 기사 URL"       → short text
+ *   "Direct text / 직접 입력 텍스트" → paragraph text
+ *   "Photo Drive URL / 사진 Drive URL" → short text
  *
  * @param {GoogleAppsScript.Events.FormsOnFormSubmit} e
  */
@@ -133,16 +133,16 @@ function onKVNFormSubmit(e) {
       answers[title] = ans || '';
     }
 
-    var inputTypeKo = answers['입력 유형']       || '';
-    var articleUrl  = answers['기사 URL']         || '';
-    var directText  = answers['직접 입력 텍스트'] || '';
-    var photoDrive  = answers['사진 Drive URL']   || '';
+    var inputTypeRaw = answers['Input type / 입력 유형']            || '';
+    var articleUrl   = answers['Article URL / 기사 URL']            || '';
+    var directText   = answers['Direct text / 직접 입력 텍스트']    || '';
+    var photoDrive   = answers['Photo Drive URL / 사진 Drive URL']  || '';
 
-    // ── Map 입력 유형 Korean label → internal code ────────────────────────────
+    // ── Map bilingual input type label → internal code ────────────────────────
     var inputTypeMap = {
-      '기사 URL':        'url',
-      '직접 텍스트 입력': 'direct_text',
-      '사진 Drive URL':  'photo',
+      'Article URL / 기사 URL':       'url',
+      'Direct text / 직접 텍스트':    'direct_text',
+      'Photo Drive URL / 사진 Drive URL': 'photo',
     };
     var inputType = inputTypeMap[inputTypeKo] || 'url';
 

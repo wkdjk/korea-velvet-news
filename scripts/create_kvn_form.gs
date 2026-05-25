@@ -20,35 +20,39 @@ function createKVNForm() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
 
   // ── Create the form ──────────────────────────────────────────────────────
-  var form = FormApp.create('KVN 기사 제출 (Korea Velvet News)');
-  form.setDescription('새 기사를 제출하려면 아래 양식을 작성하세요.');
+  var form = FormApp.create('KVN article submission / KVN 기사 제출');
+  form.setDescription('Submit a new article for Korea Velvet News. / 새 기사를 제출하세요.');
   form.setCollectEmail(false);
   form.setLimitOneResponsePerUser(false);
   form.setShowLinkToRespondAgain(true);
 
-  // ── Q1: 입력 유형 (required dropdown) ────────────────────────────────────
+  // ── Q1: Input type / 입력 유형 (required dropdown) ────────────────────────
   form.addListItem()
-    .setTitle('입력 유형')
+    .setTitle('Input type / 입력 유형')
     .setRequired(true)
-    .setChoiceValues(['기사 URL', '직접 텍스트 입력', '사진 Drive URL']);
+    .setChoiceValues([
+      'Article URL / 기사 URL',
+      'Direct text / 직접 텍스트',
+      'Photo Drive URL / 사진 Drive URL',
+    ]);
 
-  // ── Q2: 기사 URL (optional short text) ───────────────────────────────────
+  // ── Q2: Article URL / 기사 URL (optional short text) ─────────────────────
   form.addTextItem()
-    .setTitle('기사 URL')
+    .setTitle('Article URL / 기사 URL')
     .setRequired(false)
-    .setHelpText('기사 URL을 입력 유형으로 선택한 경우 URL을 붙여넣으세요. (예: https://...)');
+    .setHelpText('Paste the article URL. / 기사 URL을 붙여넣으세요. (예: https://...)');
 
-  // ── Q3: 직접 입력 텍스트 (optional long text) ────────────────────────────
+  // ── Q3: Direct text / 직접 입력 텍스트 (optional long text) ──────────────
   form.addParagraphTextItem()
-    .setTitle('직접 입력 텍스트')
+    .setTitle('Direct text / 직접 입력 텍스트')
     .setRequired(false)
-    .setHelpText('직접 텍스트 입력을 선택한 경우 기사 본문을 여기에 붙여넣으세요.');
+    .setHelpText('Paste the full article body. / 기사 본문을 붙여넣으세요.');
 
-  // ── Q4: 사진 Drive URL (optional short text) ─────────────────────────────
+  // ── Q4: Photo Drive URL / 사진 Drive URL (optional short text) ───────────
   form.addTextItem()
-    .setTitle('사진 Drive URL')
+    .setTitle('Photo Drive URL / 사진 Drive URL')
     .setRequired(false)
-    .setHelpText('사진 Drive URL을 선택한 경우 Google Drive 공유 링크를 붙여넣으세요.');
+    .setHelpText('Paste the Google Drive share link. / Google Drive 공유 링크를 붙여넣으세요.');
 
   // ── Link form responses to a dedicated tab in this spreadsheet ───────────
   // Note: the onKVNFormSubmit trigger in kvn_apps_script.gs handles routing
