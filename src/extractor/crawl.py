@@ -1,5 +1,4 @@
 import trafilatura
-import requests
 
 _MIN_BODY_LEN = 100
 _DESCRIPTION_MIN_LEN = 50
@@ -17,41 +16,65 @@ def _fetch_with_trafilatura(url: str) -> str | None:
         return None
 
 
-def _fetch_with_newspaper(url: str) -> str | None:
-    """Fallback: attempt extraction using newspaper3k."""
+def _fetch_with_newspaper(url: str) -> tuple[str | None, str]:
+    """Fallback: attempt extraction using newspaper3k.
+
+    Returns (body_text_or_None, image_url_or_empty_string).
+    """
     try:
         from newspaper import Article
         article = Article(url, language="ko")
         article.download()
         article.parse()
         text = article.text.strip()
-        return text if len(text) >= _MIN_BODY_LEN else None
+        image_url = article.top_image or ""
+        body = text if len(text) >= _MIN_BODY_LEN else None
+        return body, image_url
     except Exception:
-        return None
+        return None, ""
 
 
-def extract_body(url: str, naver_description: str = "") -> tuple[str | None, str]:
+def _fetch_image_only(url: str) -> str:
+    """Fetch top image URL using newspaper3k without requiring a usable body.
+
+    Used when trafilatura already succeeded for body extraction but we still
+    want to attempt image discovery.  Returns empty string on any failure.
     """
-    Extract article body text from a URL.
+    try:
+        from newspaper import Article
+        article = Article(url, language="ko")
+        article.download()
+        article.parse()
+        return article.top_image or ""
+    except Exception:
+        return ""
 
-    Returns (body_text, method) where method is one of:
-    'trafilatura', 'newspaper', 'naver_description', 'failed'
+
+def extract_body(url: str, naver_description: str = "") -> tuple[str | None, str, str]:
+    """Extract article body text and top image URL from a URL.
+
+    Returns (body_text, method, image_url) where:
+      - body_text : extracted text, or None on failure
+      - method    : 'trafilatura' | 'newspaper' | 'naver_description' | 'failed'
+      - image_url : top image URL string, or '' if none found
 
     Fallback chain:
-    1. trafilatura
-    2. newspaper3k
-    3. Naver API description (if >= DESCRIPTION_MIN_LEN chars)
-    4. None (extract_failed)
+    1. trafilatura (body) + newspaper3k (image)
+    2. newspaper3k (body + image)
+    3. Naver API description (body, no image)
+    4. None / failed
     """
     text = _fetch_with_trafilatura(url)
     if text:
-        return text, "trafilatura"
+        # Body resolved via trafilatura; still try newspaper for the image.
+        image_url = _fetch_image_only(url)
+        return text, "trafilatura", image_url
 
-    text = _fetch_with_newspaper(url)
-    if text:
-        return text, "newspaper"
+    body, image_url = _fetch_with_newspaper(url)
+    if body:
+        return body, "newspaper", image_url
 
     if naver_description and len(naver_description) >= _DESCRIPTION_MIN_LEN:
-        return naver_description, "naver_description"
+        return naver_description, "naver_description", image_url
 
-    return None, "failed"
+    return None, "failed", image_url

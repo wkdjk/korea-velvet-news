@@ -109,15 +109,19 @@ def run():
     ]
     print(f"Created in Sheets: {len(created)}")
 
-    # Extract body text
+    # Extract body text and top image URL
     extractable = []
     extract_updates = []
     for article in created:
-        body, method = extract_body(article["url"], article.get("description", ""))
+        body, method, image_url = extract_body(article["url"], article.get("description", ""))
         if body:
-            extract_updates.append({"id": article["id"], "fields": {"body_ko": body, "status": "extracted"}})
+            fields: dict = {"body_ko": body, "status": "extracted"}
+            if image_url:
+                fields["image_url"] = image_url
+            extract_updates.append({"id": article["id"], "fields": fields})
             extractable.append({**article, "body_ko": body})
-            print(f"  Extracted ({method}): {article['id']}")
+            img_note = f", image={'yes' if image_url else 'no'}"
+            print(f"  Extracted ({method}{img_note}): {article['id']}")
         else:
             extract_updates.append({"id": article["id"], "fields": {"status": "extract_failed"}})
             print(f"  Extract failed: {article['id']}")
