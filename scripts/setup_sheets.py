@@ -41,12 +41,33 @@ except ImportError:
 # ── Schema definitions ────────────────────────────────────────
 
 ARTICLES_HEADERS = [
-    "id", "url", "title_ko", "title_en", "body_ko", "body_en",
-    "source_name", "source_type", "published_date", "status",
-    "relevance_score", "recommendation", "tags_internal",
-    "is_cluster_rep", "cluster_id", "image_url", "is_product_news",
-    "input_type", "photo_drive_url", "direct_text",
-    "month_key", "glossary_validated", "classifier_feedback",
+    # ── Visible-priority columns (left side) ──────────────────────────────────
+    "approved",          # NEW: checkbox; TRUE triggers build.py pipeline
+    "title_ko",
+    "status",
+    "published_date",
+    "source_name",
+    "relevance_score",
+    "is_product_news",
+    "url",
+    "recommendation",
+    "is_cluster_rep",
+    "cluster_id",
+    "input_type",
+    # ── Body / translation columns ────────────────────────────────────────────
+    "body_ko",
+    "title_en",
+    "body_en",
+    # ── Secondary metadata ────────────────────────────────────────────────────
+    "source_type",
+    "tags_internal",
+    "image_url",
+    "photo_drive_url",
+    "direct_text",
+    "month_key",
+    "glossary_validated",
+    "classifier_feedback",
+    "id",              # UUID; kept last so key columns stay visible without scrolling
 ]
 
 KEYWORDS_HEADERS = ["keyword", "is_active", "source", "note"]
@@ -231,7 +252,9 @@ def main() -> None:
         pass
 
     # articles tab — id column added at front
-    articles_ws = _ensure_tab(spreadsheet, "articles",  ["id"] + ARTICLES_HEADERS[1:])
+    # ARTICLES_HEADERS already includes 'id' as the last entry (moved there in Phase 4).
+    # No splice needed; pass the list as-is.
+    articles_ws = _ensure_tab(spreadsheet, "articles", ARTICLES_HEADERS)
     keywords_ws = _ensure_tab(spreadsheet, "keywords",  ["id"] + KEYWORDS_HEADERS)
     glossary_ws = _ensure_tab(spreadsheet, "glossary",  ["id"] + GLOSSARY_HEADERS)
     _ensure_tab(spreadsheet, "reports",   ["id"] + REPORTS_HEADERS)

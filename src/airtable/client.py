@@ -48,6 +48,7 @@ _LIST_FIELDS: frozenset[str] = frozenset({"tags_internal"})
 
 # ── Fields that hold booleans (TRUE/FALSE in Sheets) ──────────
 _BOOL_FIELDS: frozenset[str] = frozenset({
+    "approved",          # checkbox set by Commander; triggers build pipeline
     "is_active", "is_cluster_rep", "is_product_news",
     "glossary_validated",
 })
