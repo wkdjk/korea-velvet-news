@@ -80,8 +80,9 @@ No full stop at the end of the source line. No parentheses.
 
 - Every Korean term in the active Glossary that appears in `body_ko` **must** appear in `body_en` using the exact English equivalent.
 - The translator retries automatically up to 2 times on glossary failures.
-- If a Korean term has no Glossary entry, the translator inserts `[GLOSSARY GAP: term_ko]` as a searchable flag. Search `body_en` for `[GLOSSARY GAP]` when reviewing.
-- When a gap is spotted, add the missing term to the Glossary table (`is_active` checked) and it will be used in subsequent translations.
+- If a Korean term has no Glossary entry: insert a plain-English parenthetical gloss — e.g. "Seoul Yangnyeongsi (Seoul's largest traditional herbal medicine market)". **`[GLOSSARY GAP]` tags must never appear in published output.**
+- For unconfirmed proper nouns (drama titles, brand names, romanisation uncertain): insert `[PROPER NOUN — verify romanisation]` for human review.
+- When a glossary gap is spotted, add the missing term to the Glossary table (`is_active` checked) for future translations.
 
 ---
 
@@ -89,14 +90,48 @@ No full stop at the end of the source line. No parentheses.
 
 - `title_en` must be ≤15 words.
 - Factual, not sensational. Avoid exclamation marks.
-- Capitalise headline-style: major words capitalised, articles/prepositions lowercase.
+- Written from the perspective of a health-product export professional, not a general news reader.
+- Sentence case: first word + all proper nouns capitalised (Korean, Chinese, New Zealand, Seoul, etc.).
 - Example: "KGC인삼공사 Launches New 녹용 SKU for Children" → "KGC Launches New Velvet Product Line for Children Under Seven"
 
 ---
 
-## 8. Phase B Formatting Rules
+## 8. Formatting Rules
 
-- Use `**bold**` for one or two key phrases per paragraph.
+- Use `**bold**` for one or two key phrases per paragraph — prioritise numerical market signals, regulatory decisions, trade-impact facts.
 - No italics, no headers, no bullet points inside `body_en`.
 - Paragraph breaks: double newline (`\n\n`).
 - The template converts `**text**` → `<strong>text</strong>` automatically.
+
+---
+
+## 9. DINZ Relevance Line (mandatory)
+
+Every `body_en` must end with (after final paragraph, before Source line):
+
+```
+Why it matters: [≤25 words — what this means for NZ velvet exporters or the Korean velvet market]
+```
+
+If no direct connection exists: `Why it matters: Indirect relevance — monitors broader Korean traditional medicine market trends.`
+
+---
+
+## 10. Date Consistency
+
+If a date in the body conflicts with the article's publication date, the translator must flag it inline:
+`[DATE CONFLICT — verify: body says X, article date is Y]`
+Never silently pass through a date contradiction.
+
+---
+
+## 11. Source Attribution (mandatory)
+
+Final line of every `body_en`, after the "Why it matters" line:
+
+```
+Source: [Full outlet name in English], [Day Month Year]
+```
+
+- Full name, not domain ("Chosun Ilbo" not "chosun.com")
+- No full stop at end, no parentheses.
