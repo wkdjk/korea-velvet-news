@@ -55,6 +55,8 @@ _BOOL_FIELDS: frozenset[str] = frozenset({
 # ── Singletons ────────────────────────────────────────────────
 _client: Optional[gspread.Client] = None
 _spreadsheet: Optional[gspread.Spreadsheet] = None
+_url_cache: Optional[set] = None          # loaded once per session
+_headers_cache: dict[str, list[str]] = {} # tab_name → header row, cached per session
 
 
 # ---------------------------------------------------------------------------
@@ -90,6 +92,15 @@ def _get_spreadsheet() -> gspread.Spreadsheet:
 def _get_tab(table_name: str) -> gspread.Worksheet:
     tab_name = _TAB_MAP.get(table_name, table_name.lower())
     return _get_spreadsheet().worksheet(tab_name)
+
+
+def _get_headers(tab: gspread.Worksheet, table_name: str) -> list[str]:
+    """Return header row for a tab, cached per session to minimise API calls."""
+    tab_name = _TAB_MAP.get(table_name, table_name.lower())
+    if tab_name not in _headers_cache:
+        _headers_cache[tab_name] = tab.row_values(1)
+        logger.debug("_get_headers: loaded headers for '%s'.", tab_name)
+    return _headers_cache[tab_name]
 
 
 # ---------------------------------------------------------------------------
@@ -255,7 +266,7 @@ def create_record(table_name: str, fields: dict) -> dict:
         {"id": "<uuid>", "fields": <fields dict as supplied>}
     """
     tab = _get_tab(table_name)
-    headers = tab.row_values(1)
+    headers = _get_headers(tab, table_name)
 
     record_id = str(uuid.uuid4())
     row_data: dict = {"id": record_id}
@@ -270,8 +281,54 @@ def create_record(table_name: str, fields: dict) -> dict:
     values = [_serialize_value(h, row_data.get(h, "")) for h in headers]
     tab.append_row(values, value_input_option="USER_ENTERED")
 
+    # Keep URL cache consistent so url_exists() stays accurate within the session
+    if table_name == "Articles" and _url_cache is not None and "url" in fields:
+        _url_cache.add(str(fields["url"]))
+
     logger.info("create_record('%s'): id=%s", table_name, record_id)
     return {"id": record_id, "fields": fields}
+
+
+def batch_create_records(table_name: str, fields_list: list[dict]) -> list[dict]:
+    """Append multiple rows in a single API call.
+
+    Args:
+        table_name:  One of "Articles", "Keywords", "Glossary", "Reports".
+        fields_list: List of field dicts, one per record to create.
+
+    Returns:
+        List of {"id": "<uuid>", "fields": <fields dict>} records.
+    """
+    if not fields_list:
+        return []
+
+    tab = _get_tab(table_name)
+    headers = _get_headers(tab, table_name)
+
+    results: list[dict] = []
+    batch: list[list[str]] = []
+
+    for fields in fields_list:
+        record_id = str(uuid.uuid4())
+        row_data: dict = {"id": record_id}
+        row_data.update(fields)
+
+        # Auto-compute month_key from published_date (YYYY-MM)
+        if "published_date" in row_data and "month_key" not in row_data:
+            pd_val = str(row_data.get("published_date", ""))
+            if len(pd_val) >= 7:
+                row_data["month_key"] = pd_val[:7]
+
+        batch.append([_serialize_value(h, row_data.get(h, "")) for h in headers])
+        results.append({"id": record_id, "fields": fields})
+
+        # Keep URL cache consistent
+        if _url_cache is not None and "url" in fields:
+            _url_cache.add(str(fields["url"]))
+
+    tab.append_rows(batch, value_input_option="USER_ENTERED")
+    logger.info("batch_create_records('%s'): %d records created.", table_name, len(results))
+    return results
 
 
 def update_record(table_name: str, record_id: str, fields: dict) -> dict:
@@ -381,12 +438,20 @@ def batch_update_records(table_name: str, updates: list[dict]) -> list[dict]:
     return results
 
 
+def _load_url_cache() -> set:
+    """Load all existing article URLs into memory (once per session)."""
+    global _url_cache
+    if _url_cache is None:
+        tab = _get_tab("Articles")
+        all_rows: list[dict] = tab.get_all_records(empty2zero=False, head=1)
+        _url_cache = {row.get("url", "") for row in all_rows if row.get("url")}
+        logger.info("_load_url_cache: %d existing URLs loaded.", len(_url_cache))
+    return _url_cache
+
+
 def url_exists(url: str) -> bool:
     """Return True if the normalised URL already exists in the Articles tab."""
-    # Search raw values directly — no need to deserialise
-    tab = _get_tab("Articles")
-    all_rows: list[dict] = tab.get_all_records(empty2zero=False, head=1)
-    return any(row.get("url", "") == url for row in all_rows)
+    return url in _load_url_cache()
 
 
 def get_active_keywords() -> list[str]:

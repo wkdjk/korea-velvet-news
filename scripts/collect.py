@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.airtable.client import create_record, update_record, batch_update_records
+from src.airtable.client import batch_create_records, create_record, update_record, batch_update_records
 from src.classifier.classifier import classify_articles
 from src.collector.dedup import cluster_by_title, deduplicate
 from src.collector.google_alerts import search_google_alerts
@@ -85,24 +85,29 @@ def run():
         print("No new articles. Done.")
         return
 
-    # Create records in Airtable (status=collected)
-    created = []
-    for article in new_articles:
-        record = create_record("Articles", {
+    # Create records in Sheets (status=collected) — single batch API call
+    fields_list = [
+        {
             "url": article["url"],
             "title_ko": article.get("title_ko", ""),
             "source_name": article.get("source_name", ""),
             "published_date": article.get("published_date") or str(date.today()),
             "source_type": "auto",
             "status": "collected",
-        })
-        created.append({
-            "id": record["id"],
-            "url": article["url"],
-            "title_ko": article.get("title_ko", ""),
-            "description": article.get("description", ""),
-        })
-    print(f"Created in Airtable: {len(created)}")
+        }
+        for article in new_articles
+    ]
+    records = batch_create_records("Articles", fields_list)
+    created = [
+        {
+            "id": rec["id"],
+            "url": art["url"],
+            "title_ko": art.get("title_ko", ""),
+            "description": art.get("description", ""),
+        }
+        for rec, art in zip(records, new_articles)
+    ]
+    print(f"Created in Sheets: {len(created)}")
 
     # Extract body text
     extractable = []

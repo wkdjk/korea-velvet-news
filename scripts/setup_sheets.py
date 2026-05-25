@@ -94,35 +94,34 @@ def _ensure_tab(spreadsheet: gspread.Spreadsheet, tab_name: str, headers: list[s
         return ws
 
 
+def _clear_data_rows(ws: gspread.Worksheet) -> None:
+    """Delete all rows except the header row (row 1)."""
+    all_values = ws.get_all_values()
+    if len(all_values) <= 1:
+        return  # nothing to clear
+    ws.delete_rows(2, len(all_values))
+
+
 def _import_keywords(ws: gspread.Worksheet, csv_path: str) -> int:
     """Import Keywords CSV into the keywords tab. Returns row count."""
     headers, rows = _read_csv(csv_path)
     tab_headers = ws.row_values(1)
 
-    imported = 0
+    batch: list[list[str]] = []
     for row in rows:
         row_dict = dict(zip(headers, row))
-        values = [
-            str(uuid.uuid4()),                             # id
-            row_dict.get("keyword", ""),
-            _active_flag(row_dict.get("is_active", "")),
-            row_dict.get("source", ""),
-            row_dict.get("note", ""),
-        ]
-        # Map to tab headers
         mapped = {
-            "id": values[0],
-            "keyword": values[1],
-            "is_active": values[2],
-            "source": values[3],
-            "note": values[4],
+            "id":        str(uuid.uuid4()),
+            "keyword":   row_dict.get("keyword", ""),
+            "is_active": _active_flag(row_dict.get("is_active", "")),
+            "source":    row_dict.get("source", ""),
+            "note":      row_dict.get("note", ""),
         }
-        ws.append_row(
-            [mapped.get(h, "") for h in tab_headers],
-            value_input_option="USER_ENTERED",
-        )
-        imported += 1
-    return imported
+        batch.append([mapped.get(h, "") for h in tab_headers])
+
+    if batch:
+        ws.append_rows(batch, value_input_option="USER_ENTERED")
+    return len(batch)
 
 
 def _import_glossary(ws: gspread.Worksheet, csv_path: str) -> int:
@@ -130,11 +129,11 @@ def _import_glossary(ws: gspread.Worksheet, csv_path: str) -> int:
     headers, rows = _read_csv(csv_path)
     tab_headers = ws.row_values(1)
 
-    imported = 0
+    batch: list[list[str]] = []
     for row in rows:
         row_dict = dict(zip(headers, row))
         mapped = {
-            "id": str(uuid.uuid4()),
+            "id":        str(uuid.uuid4()),
             "term_ko":   row_dict.get("term_ko", ""),
             "term_en":   row_dict.get("term_en", ""),
             "term_zh":   row_dict.get("term_zh", ""),
@@ -142,12 +141,11 @@ def _import_glossary(ws: gspread.Worksheet, csv_path: str) -> int:
             "note":      row_dict.get("note", ""),
             "is_active": _active_flag(row_dict.get("is_active", "")),
         }
-        ws.append_row(
-            [mapped.get(h, "") for h in tab_headers],
-            value_input_option="USER_ENTERED",
-        )
-        imported += 1
-    return imported
+        batch.append([mapped.get(h, "") for h in tab_headers])
+
+    if batch:
+        ws.append_rows(batch, value_input_option="USER_ENTERED")
+    return len(batch)
 
 
 def _import_articles(ws: gspread.Worksheet, csv_path: str) -> int:
@@ -155,7 +153,7 @@ def _import_articles(ws: gspread.Worksheet, csv_path: str) -> int:
     headers, rows = _read_csv(csv_path)
     tab_headers = ws.row_values(1)
 
-    imported = 0
+    batch: list[list[str]] = []
     for row in rows:
         row_dict = dict(zip(headers, row))
         status = row_dict.get("status", "")
@@ -178,12 +176,11 @@ def _import_articles(ws: gspread.Worksheet, csv_path: str) -> int:
             "status":         status,
             "month_key":      month_key,
         }
-        ws.append_row(
-            [mapped.get(h, "") for h in tab_headers],
-            value_input_option="USER_ENTERED",
-        )
-        imported += 1
-    return imported
+        batch.append([mapped.get(h, "") for h in tab_headers])
+
+    if batch:
+        ws.append_rows(batch, value_input_option="USER_ENTERED")
+    return len(batch)
 
 
 # ── Main ──────────────────────────────────────────────────────
