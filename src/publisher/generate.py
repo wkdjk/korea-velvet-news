@@ -1,5 +1,5 @@
 """
-generate.py — Build the main and archive page HTML from Airtable data.
+generate.py — Build the main and archive page HTML from Google Sheets data.
 
 generate_html()         — current month's index.html
 generate_archive_html() — /archive/YYYY-MM/index.html for a past month
@@ -145,7 +145,7 @@ def generate_archive_html(month_key: str, pdf_url: str = "", output_dir: Path = 
 
     Args:
         month_key: 'YYYY-MM' (e.g. '2026-05')
-        pdf_url: public URL of the Airtable-hosted PDF (empty string = fallback to window.print)
+        pdf_url: public URL of the PDF (empty string = fallback to window.print)
         output_dir: base output directory (default: /output/)
 
     Returns (output_path, articles) — caller uses article count for Reports row.

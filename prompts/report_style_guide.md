@@ -2,7 +2,7 @@
 
 > **Purpose:** Reference for CaptainQ and CommsQ when reviewing LLM-translated articles.
 > **Scope:** Phase A plain-text English summaries for the DINZ audience.
-> **Applies to:** `body_en`, `title_en` fields in Airtable Articles.
+> **Applies to:** `body_en`, `title_en` fields in the Google Sheets Articles tab.
 
 ---
 

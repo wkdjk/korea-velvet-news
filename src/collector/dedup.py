@@ -56,7 +56,7 @@ def cluster_by_title(articles: list[dict], threshold: float = 0.5) -> list[dict]
 
 def deduplicate(articles: list[dict]) -> list[dict]:
     """
-    Remove articles whose normalised URL already exists in Airtable or appeared
+    Remove articles whose normalised URL already exists in Google Sheets or appeared
     earlier in this batch. Mutates each article's 'url' field to the normalised form.
     """
     seen = set()

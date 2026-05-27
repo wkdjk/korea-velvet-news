@@ -1,7 +1,7 @@
 """
 vision.py — Extract articles from a Korean newspaper photo using Claude Vision.
 
-Downloads the image from a URL (e.g. Airtable attachment), encodes it as base64,
+Downloads the image from a URL (e.g. a form attachment URL), encodes it as base64,
 and calls Claude Sonnet Vision with the OCR splitter system prompt.
 
 Returns a list of {title_ko, body_ko, photo_quality} dicts, one per article.

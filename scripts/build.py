@@ -7,7 +7,7 @@ Steps:
   3. Generate HTML main page
   4. On the 1st of the month: generate archive for previous month + PDF + Reports row
   5. Deploy to gh-pages
-  6. Mark translated articles as published in Airtable
+  6. Mark translated articles as published in Google Sheets
 
 Triggered by build.yml daily at KST 07:00 and workflow_dispatch.
 """

@@ -1,5 +1,5 @@
 """
-process.py — Handle articles submitted via the Airtable form.
+process.py — Handle articles submitted via the web form.
 
 Phase B: supports three input types set by the submitter via input_type field:
   - url    → extract body text from URL (Phase A behaviour)

@@ -2,13 +2,13 @@
 collect.py — Phase A collection pipeline
 
 Steps:
-  1. Load active keywords from Airtable Keywords table
+  1. Load active keywords from Google Sheets Keywords tab
   2. Search Naver + Google News for each keyword
-  3. Normalise and deduplicate against existing Airtable records
-  4. Create new articles in Airtable (status=collected)
+  3. Normalise and deduplicate against existing Google Sheets records
+  4. Create new articles in Google Sheets (status=collected)
   5. Extract body text for each new article (trafilatura → newspaper → Naver description fallback)
   6. Classify extracted articles in batches (Haiku)
-  7. Update Airtable: status=classified or extract_failed
+  7. Update Google Sheets: status=classified or extract_failed
 
 Triggered by collect.yml on Mon/Wed/Fri KST 07:00 and workflow_dispatch.
 """
@@ -69,11 +69,11 @@ def run():
 
     print(f"Raw results: {len(raw_articles)}")
 
-    # Filter by date before dedup to avoid Airtable quota waste
+    # Filter by date before dedup to avoid Google Sheets quota waste
     raw_articles = [a for a in raw_articles if _is_recent(a)]
     print(f"After date filter ({_MAX_DAYS}d): {len(raw_articles)}")
 
-    # Deduplicate against Airtable and within batch
+    # Deduplicate against Google Sheets and within batch
     new_articles = deduplicate(raw_articles)
     print(f"New after dedup: {len(new_articles)}")
 
