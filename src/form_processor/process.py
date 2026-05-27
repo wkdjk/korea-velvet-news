@@ -49,15 +49,18 @@ def _process_url(record: dict, fields: dict, updates: list) -> None:
         updates.append({"id": record["id"], "fields": {"status": "extract_failed"}})
         return
 
-    body, method = extract_body(url)
+    body, method, image_url = extract_body(url)
     if body:
+        fields_to_update = {
+            "body_ko": body,
+            "source_type": "form",
+            "status": "pending_review",
+        }
+        if image_url:
+            fields_to_update["image_url"] = image_url
         updates.append({
             "id": record["id"],
-            "fields": {
-                "body_ko": body,
-                "source_type": "form",
-                "status": "pending_review",
-            },
+            "fields": fields_to_update,
         })
         print(f"  URL extracted ({method}): {record['id']}")
     else:
