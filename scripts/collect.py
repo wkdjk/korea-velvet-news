@@ -34,15 +34,19 @@ _MAX_DAYS = int(os.environ.get("COLLECT_MAX_DAYS", "14"))
 
 
 def _is_recent(article: dict) -> bool:
-    """Return True if article was published within _MAX_DAYS days."""
+    """Return True if article was published within _MAX_DAYS days.
+
+    Articles with no date or an unparseable date are rejected (return False)
+    to prevent undated or malformed RSS entries from bypassing the cutoff.
+    """
     pub = article.get("published_date", "")
     if not pub:
-        return True  # unknown date: allow through
+        return False  # unknown date: reject rather than allow through
     try:
         cutoff = date.today() - timedelta(days=_MAX_DAYS)
         return date.fromisoformat(pub) >= cutoff
     except ValueError:
-        return True
+        return False  # unparseable date: reject
 
 
 def run():
