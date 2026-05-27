@@ -1,7 +1,10 @@
+import logging
 import re
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
-from src.airtable.client import url_exists
+from src.airtable.client import ignored_url_exists, url_exists
+
+logger = logging.getLogger(__name__)
 
 _KO_STOP = {'은', '는', '이', '가', '을', '를', '의', '에', '로', '도', '와', '과', '및', '한', '그'}
 
@@ -55,12 +58,20 @@ def cluster_by_title(articles: list[dict], threshold: float = 0.5) -> list[dict]
 
 
 def deduplicate(articles: list[dict]) -> list[dict]:
-    """
-    Remove articles whose normalised URL already exists in Google Sheets or appeared
+    """Remove articles whose normalised URL already exists in Google Sheets or appeared
     earlier in this batch. Mutates each article's 'url' field to the normalised form.
+
+    Checks two sources per URL:
+      - url_exists(): articles tab (already published or queued)
+      - ignored_url_exists(): ignored_urls tab (permanently rejected)
+
+    If the ignored_urls tab is missing or unreadable, ignored_url_exists() returns
+    False silently — the pipeline never crashes due to a missing blocklist.
     """
-    seen = set()
-    unique = []
+    seen: set = set()
+    unique: list[dict] = []
+    ignored_count: int = 0
+
     for article in articles:
         norm = normalise_url(article["url"])
         if norm in seen:
@@ -68,6 +79,11 @@ def deduplicate(articles: list[dict]) -> list[dict]:
         seen.add(norm)
         if url_exists(norm):
             continue
+        if ignored_url_exists(norm):
+            ignored_count += 1
+            continue
         article["url"] = norm
         unique.append(article)
+
+    logger.info("Ignored: %d URLs checked against ignored_urls tab", ignored_count)
     return unique

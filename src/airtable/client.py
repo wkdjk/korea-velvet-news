@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 import re
 import uuid
+from datetime import date
 from typing import Optional
 
 import gspread
@@ -57,6 +58,7 @@ _BOOL_FIELDS: frozenset[str] = frozenset({
 _client: Optional[gspread.Client] = None
 _spreadsheet: Optional[gspread.Spreadsheet] = None
 _url_cache: Optional[set] = None          # loaded once per session
+_ignored_url_cache: Optional[set] = None  # loaded once per session from ignored_urls tab
 _headers_cache: dict[str, list[str]] = {} # tab_name → header row, cached per session
 
 
@@ -453,6 +455,156 @@ def _load_url_cache() -> set:
 def url_exists(url: str) -> bool:
     """Return True if the normalised URL already exists in the Articles tab."""
     return url in _load_url_cache()
+
+
+def _load_ignored_url_cache() -> set:
+    """Load all URLs from the ignored_urls tab into memory (once per session).
+
+    Graceful: if the ignored_urls worksheet does not yet exist (C-7.1 not run),
+    logs a warning and returns an empty set. Pipeline must not crash.
+    """
+    global _ignored_url_cache
+    if _ignored_url_cache is None:
+        try:
+            tab = _get_spreadsheet().worksheet("ignored_urls")
+            all_rows: list[dict] = tab.get_all_records(empty2zero=False, head=1)
+            _ignored_url_cache = {row.get("url", "") for row in all_rows if row.get("url")}
+            logger.info(
+                "_load_ignored_url_cache: %d ignored URLs loaded.",
+                len(_ignored_url_cache),
+            )
+        except gspread.exceptions.WorksheetNotFound:
+            logger.warning(
+                "_load_ignored_url_cache: 'ignored_urls' tab not found — "
+                "run scripts/create_ignored_urls_tab.py to create it. "
+                "Returning empty set; pipeline continues."
+            )
+            _ignored_url_cache = set()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "_load_ignored_url_cache: unexpected error reading tab: %s — "
+                "returning empty set.",
+                exc,
+            )
+            _ignored_url_cache = set()
+    return _ignored_url_cache
+
+
+def ignored_url_exists(url: str) -> bool:
+    """Return True if the URL is present in the ignored_urls tab.
+
+    Returns False (never raises) when the tab is missing or unreadable.
+    """
+    return url in _load_ignored_url_cache()
+
+
+def ignore_record(record_id: str, reason: str = "rejected") -> bool:
+    """Move a record from the articles tab to the ignored_urls tab atomically.
+
+    Atomic sequence (strict order):
+      1. Read all articles tab values.
+      2. Locate the row for record_id in the 'id' column.
+      3. Extract url and title_ko from that row.
+      4. Append to ignored_urls tab (url, title_ko, ignored_date, reason).
+         If this fails → log error, return False (do NOT delete).
+      5. Delete the row from articles tab using delete_rows(row_index).
+      6. Update _url_cache (remove url) and _ignored_url_cache (add url).
+      7. Return True on success, False on any failure.
+
+    Args:
+        record_id: The UUID in the 'id' column of the articles tab.
+        reason:    Short string explaining why the article is being ignored.
+
+    Returns:
+        True if the record was successfully moved; False otherwise.
+    """
+    try:
+        articles_tab = _get_tab("Articles")
+        all_values = articles_tab.get_all_values()
+    except Exception as exc:  # noqa: BLE001
+        logger.error("ignore_record: failed to read articles tab: %s", exc)
+        return False
+
+    if not all_values:
+        logger.error("ignore_record: articles tab is empty — id=%s", record_id)
+        return False
+
+    headers = all_values[0]
+    if "id" not in headers:
+        logger.error("ignore_record: articles tab has no 'id' column — id=%s", record_id)
+        return False
+
+    id_col_idx = headers.index("id")
+
+    # Locate the target row (1-based; row 1 = header, data rows start at 2)
+    target_row: Optional[int] = None
+    target_data: Optional[list[str]] = None
+    for i, row in enumerate(all_values[1:], start=2):
+        if len(row) > id_col_idx and row[id_col_idx] == record_id:
+            target_row = i
+            target_data = row
+            break
+
+    if target_row is None or target_data is None:
+        logger.error("ignore_record: id=%s not found in articles tab.", record_id)
+        return False
+
+    # Extract url and title_ko
+    url = ""
+    title_ko = ""
+    if "url" in headers:
+        url_idx = headers.index("url")
+        url = target_data[url_idx] if len(target_data) > url_idx else ""
+    if "title_ko" in headers:
+        title_idx = headers.index("title_ko")
+        title_ko = target_data[title_idx] if len(target_data) > title_idx else ""
+
+    logger.info("ignore_record: id=%s url=%s reason=%s", record_id, url, reason)
+
+    # Step 4: append to ignored_urls tab FIRST — never delete without a successful append
+    try:
+        ignored_tab = _get_spreadsheet().worksheet("ignored_urls")
+        ignored_tab.append_row(
+            [url, title_ko, date.today().isoformat(), reason],
+            value_input_option="USER_ENTERED",
+        )
+    except gspread.exceptions.WorksheetNotFound:
+        logger.error(
+            "ignore_record: 'ignored_urls' tab not found — "
+            "run scripts/create_ignored_urls_tab.py first. "
+            "id=%s NOT deleted.",
+            record_id,
+        )
+        return False
+    except Exception as exc:  # noqa: BLE001
+        logger.error(
+            "ignore_record: append to ignored_urls failed: %s — "
+            "id=%s NOT deleted.",
+            exc,
+            record_id,
+        )
+        return False
+
+    # Step 5: delete the row from articles tab
+    try:
+        articles_tab.delete_rows(target_row)
+    except Exception as exc:  # noqa: BLE001
+        logger.error(
+            "ignore_record: delete_rows(%d) failed: %s — "
+            "WARNING: id=%s may now exist in BOTH tabs. Manual cleanup required.",
+            target_row,
+            exc,
+            record_id,
+        )
+        return False
+
+    # Step 6: update in-session caches for consistency
+    if _url_cache is not None and url:
+        _url_cache.discard(url)
+    if _ignored_url_cache is not None and url:
+        _ignored_url_cache.add(url)
+
+    return True
 
 
 def get_active_keywords() -> list[str]:
