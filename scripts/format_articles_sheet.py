@@ -193,14 +193,22 @@ def _build_header_format_request(sheet_id: int, num_cols: int) -> dict:
     }
 
 
+_CHECKBOX_ROW_BUFFER = 5000  # covers future rows appended by collect.py
+
+
 def _build_checkbox_request(sheet_id: int, approved_col_idx: int, num_data_rows: int) -> dict:
-    """Apply Boolean checkbox data validation to the 'approved' column (data rows only)."""
+    """Apply Boolean checkbox data validation to the 'approved' column.
+
+    The range extends to _CHECKBOX_ROW_BUFFER so that rows appended after
+    this script runs also receive checkbox validation automatically.
+    """
+    end_row = max(1 + num_data_rows, _CHECKBOX_ROW_BUFFER)
     return {
         "setDataValidation": {
             "range": {
                 "sheetId":          sheet_id,
                 "startRowIndex":    1,               # skip header
-                "endRowIndex":      1 + num_data_rows,
+                "endRowIndex":      end_row,
                 "startColumnIndex": approved_col_idx,
                 "endColumnIndex":   approved_col_idx + 1,
             },
