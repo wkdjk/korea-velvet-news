@@ -58,13 +58,13 @@
     {% if '\n\n' in article.body_en %}
       {% for para in article.body_en.split('\n\n') %}
         {% if para.strip() %}
-        <p>{{ para.strip() | e | render_bold | safe }}</p>
+        <p>{{ para.strip() | strip_glossary_gap | normalise_bold | e | render_bold | safe }}</p>
         {% endif %}
       {% endfor %}
     {% else %}
       {% for para in article.body_en.split('\n') %}
         {% if para.strip() %}
-        <p>{{ para.strip() | e | render_bold | safe }}</p>
+        <p>{{ para.strip() | strip_glossary_gap | normalise_bold | e | render_bold | safe }}</p>
         {% endif %}
       {% endfor %}
     {% endif %}
@@ -74,7 +74,7 @@
   {% if article.why_it_matters %}
   <div class="article__why">
     <span class="article__why-label">Why it matters</span>
-    {{ article.why_it_matters | e }}
+    {{ article.why_it_matters | strip_glossary_gap | e }}
   </div>
   {% endif %}
 

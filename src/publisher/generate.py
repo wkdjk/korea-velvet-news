@@ -47,6 +47,31 @@ def _sentence_case(s: str) -> str:
     return " ".join(out)
 
 
+def _strip_glossary_gap(text: str) -> str:
+    """Remove [GLOSSARY GAP] placeholder tokens from article text.
+
+    The translator prompt forbids this tag, but older LLM outputs stored in
+    Airtable may contain it. This filter removes the tag silently so it never
+    appears in published output. The surrounding text is left intact — the
+    Korean term or its parenthetical gloss remains readable without the tag.
+    """
+    return text.replace("[GLOSSARY GAP]", "").replace(" [GLOSSARY GAP]", "")
+
+
+def _normalise_bold(text: str) -> str:
+    """Normalise any literal <strong>...</strong> HTML tags to **...** Markdown bold.
+
+    Some Airtable records contain <strong> tags stored as raw HTML rather than
+    Markdown. The Jinja2 template pipeline applies | e (HTML escape) before
+    | render_bold, which turns <strong> into &lt;strong&gt; — making the tags
+    visible as literal text in the output. Pre-normalising to Markdown bold lets
+    the existing render_bold filter handle both formats uniformly.
+    """
+    text = re.sub(r'<strong>(.*?)</strong>', r'**\1**', text, flags=re.DOTALL)
+    text = re.sub(r'<b>(.*?)</b>', r'**\1**', text, flags=re.DOTALL)
+    return text
+
+
 def _render_bold(text: str) -> str:
     """Convert **text** markdown bold to <strong>text</strong>.
     Must run on already-escaped text; produces trusted HTML."""
@@ -117,6 +142,8 @@ def generate_html(output_path: Path = None) -> Path:
     env = Environment(loader=FileSystemLoader(str(_TEMPLATES_DIR)), autoescape=True)
     env.filters["format_date"] = _format_date
     env.filters["sentence_case"] = _sentence_case
+    env.filters["strip_glossary_gap"] = _strip_glossary_gap
+    env.filters["normalise_bold"] = _normalise_bold
     env.filters["render_bold"] = _render_bold
 
     # Collect the unique categories present in this month's articles (in canonical order)
@@ -161,6 +188,8 @@ def generate_archive_html(month_key: str, pdf_url: str = "", output_dir: Path = 
     env = Environment(loader=FileSystemLoader(str(_TEMPLATES_DIR)), autoescape=True)
     env.filters["format_date"] = _format_date
     env.filters["sentence_case"] = _sentence_case
+    env.filters["strip_glossary_gap"] = _strip_glossary_gap
+    env.filters["normalise_bold"] = _normalise_bold
     env.filters["render_bold"] = _render_bold
 
     template = env.get_template("archive_month.html")
