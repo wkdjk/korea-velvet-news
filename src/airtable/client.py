@@ -49,10 +49,13 @@ _LIST_FIELDS: frozenset[str] = frozenset({"tags_internal"})
 
 # ── Fields that hold booleans (TRUE/FALSE in Sheets) ──────────
 _BOOL_FIELDS: frozenset[str] = frozenset({
-    "approved",          # checkbox set by Commander; triggers build pipeline
     "is_active", "is_cluster_rep", "is_product_news",
     "glossary_validated",
 })
+
+# ── Fields that use YES/NO strings (not TRUE/FALSE checkboxes) ─
+# approved: Commander sets YES; pipeline never reverts to NO.
+_YES_NO_FIELDS: frozenset[str] = frozenset({"approved"})
 
 # ── Singletons ────────────────────────────────────────────────
 _client: Optional[gspread.Client] = None
@@ -174,6 +177,11 @@ def _serialize_value(key: str, value) -> str:
         return str(value)
     if key in _BOOL_FIELDS:
         return "TRUE" if bool(value) else "FALSE"
+    if key in _YES_NO_FIELDS:
+        # Accept True, "YES", "yes", "TRUE", "true" → "YES"; anything else → "NO"
+        if value is True or str(value).upper() in ("YES", "TRUE", "1"):
+            return "YES"
+        return "NO"
     return str(value)
 
 
@@ -185,6 +193,9 @@ def _deserialize_row(row: dict) -> dict:
             out[k] = [x.strip() for x in v.split(",") if x.strip()] if v else []
         elif k in _BOOL_FIELDS:
             out[k] = str(v).upper() == "TRUE"
+        elif k in _YES_NO_FIELDS:
+            # YES → True; anything else → False
+            out[k] = str(v).upper() == "YES"
         else:
             out[k] = v
     return out
@@ -499,24 +510,29 @@ def ignored_url_exists(url: str) -> bool:
 
 
 def ignore_record(record_id: str, reason: str = "rejected") -> bool:
-    """Move a record from the articles tab to the ignored_urls tab atomically.
+    """Mark a record as ignored in the articles tab and add its URL to ignored_urls.
 
-    Atomic sequence (strict order):
+    Single-tab architecture: the row stays in the articles tab with
+    status='ignored'. The URL is appended to ignored_urls as a crawl blocklist
+    entry. The row is never deleted.
+
+    Sequence (strict order):
       1. Read all articles tab values.
       2. Locate the row for record_id in the 'id' column.
       3. Extract url and title_ko from that row.
-      4. Append to ignored_urls tab (url, title_ko, ignored_date, reason).
-         If this fails → log error, return False (do NOT delete).
-      5. Delete the row from articles tab using delete_rows(row_index).
-      6. Update _url_cache (remove url) and _ignored_url_cache (add url).
-      7. Return True on success, False on any failure.
+      4. Set status='ignored' on the articles row via update_record().
+      5. Append url + metadata to ignored_urls tab (blocklist entry).
+         If this fails → log warning but return True (status was already set).
+      6. Update _ignored_url_cache (add url).
+      7. Return True on success, False if the articles row was not found or
+         the status update failed.
 
     Args:
         record_id: The UUID in the 'id' column of the articles tab.
         reason:    Short string explaining why the article is being ignored.
 
     Returns:
-        True if the record was successfully moved; False otherwise.
+        True if the record was successfully marked as ignored; False otherwise.
     """
     try:
         articles_tab = _get_tab("Articles")
@@ -537,15 +553,13 @@ def ignore_record(record_id: str, reason: str = "rejected") -> bool:
     id_col_idx = headers.index("id")
 
     # Locate the target row (1-based; row 1 = header, data rows start at 2)
-    target_row: Optional[int] = None
     target_data: Optional[list[str]] = None
-    for i, row in enumerate(all_values[1:], start=2):
+    for row in all_values[1:]:
         if len(row) > id_col_idx and row[id_col_idx] == record_id:
-            target_row = i
             target_data = row
             break
 
-    if target_row is None or target_data is None:
+    if target_data is None:
         logger.error("ignore_record: id=%s not found in articles tab.", record_id)
         return False
 
@@ -561,7 +575,16 @@ def ignore_record(record_id: str, reason: str = "rejected") -> bool:
 
     logger.info("ignore_record: id=%s url=%s reason=%s", record_id, url, reason)
 
-    # Step 4: append to ignored_urls tab FIRST — never delete without a successful append
+    # Step 4: set status='ignored' in the articles tab row (row stays — single-tab arch)
+    try:
+        update_record("Articles", record_id, {"status": "ignored"})
+    except Exception as exc:  # noqa: BLE001
+        logger.error(
+            "ignore_record: update_record failed for id=%s: %s", record_id, exc
+        )
+        return False
+
+    # Step 5: append URL to ignored_urls tab (crawl blocklist) — non-fatal if it fails
     try:
         ignored_tab = _get_spreadsheet().worksheet("ignored_urls")
         ignored_tab.append_row(
@@ -569,38 +592,20 @@ def ignore_record(record_id: str, reason: str = "rejected") -> bool:
             value_input_option="USER_ENTERED",
         )
     except gspread.exceptions.WorksheetNotFound:
-        logger.error(
+        logger.warning(
             "ignore_record: 'ignored_urls' tab not found — "
-            "run scripts/create_ignored_urls_tab.py first. "
-            "id=%s NOT deleted.",
+            "blocklist not updated but article status set to ignored. id=%s",
             record_id,
         )
-        return False
     except Exception as exc:  # noqa: BLE001
-        logger.error(
+        logger.warning(
             "ignore_record: append to ignored_urls failed: %s — "
-            "id=%s NOT deleted.",
+            "blocklist not updated but article status set to ignored. id=%s",
             exc,
             record_id,
         )
-        return False
 
-    # Step 5: delete the row from articles tab
-    try:
-        articles_tab.delete_rows(target_row)
-    except Exception as exc:  # noqa: BLE001
-        logger.error(
-            "ignore_record: delete_rows(%d) failed: %s — "
-            "WARNING: id=%s may now exist in BOTH tabs. Manual cleanup required.",
-            target_row,
-            exc,
-            record_id,
-        )
-        return False
-
-    # Step 6: update in-session caches for consistency
-    if _url_cache is not None and url:
-        _url_cache.discard(url)
+    # Step 6: update in-session cache so ignored_url_exists() stays accurate
     if _ignored_url_cache is not None and url:
         _ignored_url_cache.add(url)
 

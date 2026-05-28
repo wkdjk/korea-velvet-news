@@ -7,27 +7,28 @@
  *
  * TRIGGER 2 — onArticleApproved:
  *   Fires on any cell edit in the spreadsheet.
- *   When the 'approved' column in the 'articles' tab is toggled:
- *     TRUE  → status = "approved"
- *     FALSE → status = "pending_review"  (unless already "published" or "translated")
+ *   When the 'approved' column in the 'articles' tab is changed:
+ *     'YES' → status = "approved"
+ *     'NO'  → status = "pending_review"  (unless status is already protected)
  *
  * SETUP:
  *   1. Open the KVN Google Sheet → Extensions → Apps Script.
  *   2. Paste this entire file (replace any existing code).
- *   3. Run installTriggers() once.
- *   4. Authorise when prompted.
+ *   3. Run createKVNForm() once (creates the submission form).
+ *   4. Run installTriggers() once.
+ *   5. Authorise when prompted.
  *
  * NOTE: After running installTriggers(), do NOT manually add triggers in the
  *       Apps Script dashboard — duplicates will cause double-writes.
  */
 
 // ── Column index constants (0-based) ─────────────────────────────────────────
-// These must match the column order produced by format_articles_sheet.py.
+// These must match the column order in ARTICLES_HEADERS in setup_sheets.py.
 
 var COL = {
-  APPROVED:           0,   // A
+  APPROVED:           0,   // A — YES/NO dropdown
   TITLE_KO:           1,   // B
-  STATUS:             2,   // C
+  STATUS:             2,   // C — submitted | pending_review | approved | translated | published | translation_failed | ignored
   PUBLISHED_DATE:     3,   // D
   SOURCE_NAME:        4,   // E
   RELEVANCE_SCORE:    5,   // F
@@ -40,9 +41,9 @@ var COL = {
   BODY_KO:            12,  // M
   TITLE_EN:           13,  // N
   BODY_EN:            14,  // O
-  WHY_IT_MATTERS:     15,  // P  ← new (Phase C)
-  SOURCE_ATTRIBUTION: 16,  // Q  ← new (Phase C)
-  CATEGORY:           17,  // R  ← new (Phase C)
+  WHY_IT_MATTERS:     15,  // P
+  SOURCE_ATTRIBUTION: 16,  // Q
+  CATEGORY:           17,  // R
   SOURCE_TYPE:        18,  // S
   TAGS_INTERNAL:      19,  // T
   IMAGE_URL:          20,  // U
@@ -56,8 +57,10 @@ var COL = {
 
 var TOTAL_COLS = 27;  // Must equal length of ARTICLES_HEADERS in setup_sheets.py.
 
-// Statuses that must not be reverted by unchecking 'approved'.
-var PROTECTED_STATUSES = ['published', 'translated'];
+// Statuses that must not be reverted by changing 'approved' back to NO.
+// 'ignored' is protected so that manually ignored articles cannot be
+// accidentally re-activated by an approved-column edit.
+var PROTECTED_STATUSES = ['published', 'translated', 'ignored'];
 
 // ── Helper: build a blank row array of TOTAL_COLS length ─────────────────────
 
@@ -87,8 +90,8 @@ function _monthKey(dateVal) {
 
 
 // ── Helper: look up header row to find column index by name ──────────────────
-// Used as a safety check so the script does not silently write to wrong columns
-// if the sheet is re-ordered.
+// Safety check: ensures the script does not silently write to the wrong column
+// if the sheet is ever re-ordered.
 
 function _getHeaderMap(sheet) {
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
@@ -105,11 +108,11 @@ function _getHeaderMap(sheet) {
 /**
  * onKVNFormSubmit — called by a FormSubmit trigger installed via installTriggers().
  *
- * Expected form fields (by title — bilingual):
- *   "Input type / 입력 유형"       → dropdown (3 options)
- *   "Article URL / 기사 URL"       → short text
- *   "Direct text / 직접 입력 텍스트" → paragraph text
- *   "Photo Drive URL / 사진 Drive URL" → short text
+ * Expected form fields (by title — bilingual, matching create_kvn_form.gs):
+ *   "Input type / 입력 유형"              → dropdown (3 options)
+ *   "Article URL / 기사 URL"              → short text
+ *   "Direct text / 직접 입력 텍스트"      → paragraph text
+ *   "Photo Drive URL / 사진 Drive URL"    → short text
  *
  * @param {GoogleAppsScript.Events.FormsOnFormSubmit} e
  */
@@ -133,18 +136,20 @@ function onKVNFormSubmit(e) {
       answers[title] = ans || '';
     }
 
-    var inputTypeRaw = answers['Input type / 입력 유형']            || '';
-    var articleUrl   = answers['Article URL / 기사 URL']            || '';
-    var directText   = answers['Direct text / 직접 입력 텍스트']    || '';
-    var photoDrive   = answers['Photo Drive URL / 사진 Drive URL']  || '';
+    // BUG FIX (2026-05-28): was `inputTypeKo` (undefined variable) — corrected to `inputTypeRaw`.
+    var inputTypeRaw = answers['Input type / 입력 유형']             || '';
+    var articleUrl   = answers['Article URL / 기사 URL']             || '';
+    var directText   = answers['Direct text / 직접 입력 텍스트']     || '';
+    var photoDrive   = answers['Photo Drive URL / 사진 Drive URL']   || '';
 
     // ── Map bilingual input type label → internal code ────────────────────────
+    // Keys must exactly match the choice values in createKVNForm() in create_kvn_form.gs.
     var inputTypeMap = {
-      'Article URL / 기사 URL':       'url',
-      'Direct text / 직접 텍스트':    'direct_text',
-      'Photo Drive URL / 사진 Drive URL': 'photo',
+      'Article URL / 기사 URL':                'url',
+      'Direct text / 직접 입력 텍스트':        'direct_text',
+      'Photo Drive URL / 사진 Drive URL':      'photo',
     };
-    var inputType = inputTypeMap[inputTypeKo] || 'url';
+    var inputType = inputTypeMap[inputTypeRaw] || 'url';  // BUG FIX: was inputTypeMap[inputTypeKo]
 
     // ── Generate UUID (Apps Script built-in) ─────────────────────────────────
     var newId = Utilities.getUuid();
@@ -160,7 +165,7 @@ function onKVNFormSubmit(e) {
 
     // ── Build row array ───────────────────────────────────────────────────────
     var row = _blankRow();
-    row[COL.APPROVED]        = false;           // unchecked by default
+    row[COL.APPROVED]        = 'NO';   // YES/NO dropdown — new submissions default to NO
     row[COL.STATUS]          = 'submitted';
     row[COL.PUBLISHED_DATE]  = publishedDate;
     row[COL.INPUT_TYPE]      = inputType;
@@ -175,7 +180,7 @@ function onKVNFormSubmit(e) {
     if (headerMap['approved'] !== COL.APPROVED || headerMap['id'] !== COL.ID) {
       Logger.log('[WARN] onKVNFormSubmit: header map mismatch — falling back to header-based write.');
       _writeRowByHeaders(articlesSheet, headerMap, {
-        approved:        false,
+        approved:        'NO',
         status:          'submitted',
         published_date:  publishedDate,
         input_type:      inputType,
@@ -223,7 +228,7 @@ function _writeRowByHeaders(sheet, headerMap, fields) {
 }
 
 
-// ── TRIGGER 2: approved checkbox edit ────────────────────────────────────────
+// ── TRIGGER 2: approved dropdown edit ────────────────────────────────────────
 
 /**
  * onArticleApproved — called by an onEdit trigger installed via installTriggers().
@@ -233,10 +238,10 @@ function _writeRowByHeaders(sheet, headerMap, fields) {
  *   - The edited column is the "approved" column (column A, 1-based = 1).
  *   - The edited row is not row 1 (header).
  *
- * Behaviour:
- *   approved = TRUE  → status = "approved"
- *   approved = FALSE → status = "pending_review"
- *                      (skipped if current status is "published" or "translated")
+ * Behaviour (YES/NO dropdown — not a checkbox):
+ *   approved = 'YES' → status = "approved"
+ *   approved = 'NO'  → status = "pending_review"
+ *                       (skipped if current status is in PROTECTED_STATUSES)
  *
  * @param {GoogleAppsScript.Events.SheetsOnEdit} e
  */
@@ -253,28 +258,28 @@ function onArticleApproved(e) {
     if (col !== COL.APPROVED + 1) return;
     if (row === 1) return;  // header row
 
-    var approvedValue = e.range.getValue();
-    var isApproved = (approvedValue === true || approvedValue === 'TRUE' || approvedValue === true);
+    var approvedValue = String(e.range.getValue()).trim().toUpperCase();
+    var isApproved = (approvedValue === 'YES');
 
     // Status column: COL.STATUS is 0-based; getRange uses 1-based.
     var statusCell = sheet.getRange(row, COL.STATUS + 1);
-    var currentStatus = statusCell.getValue();
+    var currentStatus = String(statusCell.getValue()).toLowerCase().trim();
 
     if (isApproved) {
       // Always allow approval regardless of current status.
       statusCell.setValue('approved');
-      Logger.log('onArticleApproved: row ' + row + ' → approved');
+      Logger.log('onArticleApproved: row ' + row + ' approved=YES → status=approved');
     } else {
-      // Do not revert if article is already published or translated.
-      if (PROTECTED_STATUSES.indexOf(String(currentStatus).toLowerCase()) !== -1) {
+      // Do not revert if article is already in a protected status.
+      if (PROTECTED_STATUSES.indexOf(currentStatus) !== -1) {
         Logger.log(
           'onArticleApproved: row ' + row +
-          ' unapproved but status="' + currentStatus + '" — protected, no change.'
+          ' approved=NO but status="' + currentStatus + '" — protected, no change.'
         );
         return;
       }
       statusCell.setValue('pending_review');
-      Logger.log('onArticleApproved: row ' + row + ' → pending_review');
+      Logger.log('onArticleApproved: row ' + row + ' approved=NO → status=pending_review');
     }
 
   } catch (err) {
@@ -289,7 +294,7 @@ function onArticleApproved(e) {
  * installTriggers — run once from the Apps Script editor after pasting this file.
  *
  * Installs:
- *   1. FormSubmit trigger → onKVNFormSubmit (linked to the form created by create_kvn_form.gs)
+ *   1. FormSubmit trigger → onKVNFormSubmit (linked to the form created by createKVNForm)
  *   2. onEdit trigger     → onArticleApproved (on this spreadsheet)
  *
  * Safe to re-run: existing triggers with the same function name are removed first.

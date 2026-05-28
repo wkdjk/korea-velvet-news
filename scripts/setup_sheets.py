@@ -1,19 +1,18 @@
 """
 scripts/setup_sheets.py — One-time KVN Google Sheets setup.
 
-Creates "KVN Master Data" spreadsheet, sets up 4 tabs with correct headers,
-imports Keywords and Glossary from Airtable CSV exports, and prints the
-Sheets ID to register as GitHub Secret KVN_SHEETS_ID.
+Creates "Korea Velvet News — Master Data" spreadsheet, sets up tabs with
+correct headers, and applies data validation for the approved and status
+columns.
 
-Usage:
-    GOOGLE_SERVICE_ACCOUNT_JSON='...' \\
-    python scripts/setup_sheets.py \\
-        --keywords-csv ~/Downloads/Keywords-Grid\\ view.csv \\
-        --glossary-csv ~/Downloads/Glossary-Grid\\ view.csv
+Usage (no CSV imports needed — use migrate_kvn_sheets.py for data):
+    PYTHONPATH=. python scripts/setup_sheets.py
 
 Optional flags:
     --sheets-id XXXX   Open existing sheet instead of creating a new one.
-    --articles-csv     Also import published articles from Airtable export.
+    --keywords-csv     (Optional) Path to Keywords CSV export.
+    --glossary-csv     (Optional) Path to Glossary CSV export.
+    --articles-csv     (Optional) Path to Articles CSV export.
     --share-email      Extra email to grant editor access (default: seouldesk.help@gmail.com).
 """
 from __future__ import annotations
@@ -26,6 +25,8 @@ import sys
 import uuid
 from pathlib import Path
 
+import requests
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -33,6 +34,7 @@ load_dotenv()
 try:
     import gspread
     from google.oauth2.service_account import Credentials
+    from google.auth.transport.requests import Request as GoogleRequest
 except ImportError:
     print("[ERROR] gspread or google-auth not installed.")
     print("        Run: pip install gspread google-auth")
@@ -42,7 +44,7 @@ except ImportError:
 
 ARTICLES_HEADERS = [
     # ── Visible-priority columns (left side) ──────────────────────────────────
-    "approved",          # NEW: checkbox; TRUE triggers build.py pipeline
+    "approved",          # YES/NO dropdown; YES triggers build.py pipeline
     "title_ko",
     "status",
     "published_date",
@@ -80,12 +82,30 @@ GLOSSARY_HEADERS = ["term_ko", "term_en", "term_zh", "category", "note", "is_act
 
 REPORTS_HEADERS = ["month", "article_count", "pdf_public_url", "status", "sent_at"]
 
+IGNORED_URLS_HEADERS = ["url", "title_ko", "ignored_date", "reason"]
+
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive",
 ]
 
 COMMANDER_EMAIL = "seouldesk.help@gmail.com"
+
+SPREADSHEET_NAME = "Korea Velvet News — Master Data"
+
+# ── Data validation values ────────────────────────────────────
+
+APPROVED_VALUES = ["YES", "NO"]
+
+STATUS_VALUES = [
+    "submitted",
+    "pending_review",
+    "approved",
+    "translated",
+    "published",
+    "translation_failed",
+    "ignored",
+]
 
 
 # ── Helpers ───────────────────────────────────────────────────
@@ -106,17 +126,71 @@ def _read_csv(path: str) -> tuple[list[str], list[list[str]]]:
     return headers, rows
 
 
-def _ensure_tab(spreadsheet: gspread.Spreadsheet, tab_name: str, headers: list[str]) -> gspread.Worksheet:
+def _ensure_tab(
+    spreadsheet: gspread.Spreadsheet,
+    tab_name: str,
+    headers: list[str],
+    rows: int = 1000,
+) -> gspread.Worksheet:
     """Return existing tab or create it with the given headers."""
     try:
         ws = spreadsheet.worksheet(tab_name)
         print(f"  Tab '{tab_name}' already exists — skipping creation.")
         return ws
     except gspread.exceptions.WorksheetNotFound:
-        ws = spreadsheet.add_worksheet(title=tab_name, rows=1000, cols=len(headers))
+        ws = spreadsheet.add_worksheet(title=tab_name, rows=rows, cols=len(headers))
         ws.append_row(headers, value_input_option="USER_ENTERED")
-        print(f"  Tab '{tab_name}' created with {len(headers)} columns.")
+        print(f"  Tab '{tab_name}' created with {len(headers)} columns ({rows} rows).")
         return ws
+
+
+def _col_letter(index_0based: int) -> str:
+    """Convert 0-based column index to Sheets column letter (A, B, ... Z, AA, ...)."""
+    result = ""
+    n = index_0based + 1
+    while n > 0:
+        n, remainder = divmod(n - 1, 26)
+        result = chr(65 + remainder) + result
+    return result
+
+
+def _add_data_validation(
+    spreadsheet: gspread.Spreadsheet,
+    worksheet: gspread.Worksheet,
+    col_index_0based: int,
+    values: list[str],
+) -> None:
+    """Add a dropdown data validation rule to a column (rows 2 onward) via Sheets API.
+
+    Uses spreadsheet.batch_update() with a setDataValidation request so that
+    gspread_formatting is not required as a dependency.
+    """
+    sheet_id = worksheet.id
+    col = col_index_0based
+
+    request = {
+        "setDataValidation": {
+            "range": {
+                "sheetId": sheet_id,
+                "startRowIndex": 1,     # row 2 (0-based), skips header
+                "endRowIndex": 1000,    # cover all data rows
+                "startColumnIndex": col,
+                "endColumnIndex": col + 1,
+            },
+            "rule": {
+                "condition": {
+                    "type": "ONE_OF_LIST",
+                    "values": [{"userEnteredValue": v} for v in values],
+                },
+                "showCustomUi": True,
+                "strict": False,        # warn but allow manual overrides
+            },
+        }
+    }
+
+    spreadsheet.batch_update({"requests": [request]})
+    col_letter = _col_letter(col)
+    print(f"  Data validation set on column {col_letter}: {', '.join(values)}")
 
 
 def _clear_data_rows(ws: gspread.Worksheet) -> None:
@@ -174,7 +248,7 @@ def _import_glossary(ws: gspread.Worksheet, csv_path: str) -> int:
 
 
 def _import_articles(ws: gspread.Worksheet, csv_path: str) -> int:
-    """Import Articles CSV (published only) into the articles tab."""
+    """Import Articles CSV (published/translated only) into the articles tab."""
     headers, rows = _read_csv(csv_path)
     tab_headers = ws.row_values(1)
 
@@ -183,10 +257,14 @@ def _import_articles(ws: gspread.Worksheet, csv_path: str) -> int:
         row_dict = dict(zip(headers, row))
         status = row_dict.get("status", "")
         if status not in ("published", "translated"):
-            continue  # only import published articles
+            continue
 
         pd_val = row_dict.get("published_date", "")
         month_key = pd_val[:7] if len(pd_val) >= 7 else ""
+
+        # Map old TRUE/FALSE approved → YES/NO
+        raw_approved = row_dict.get("approved", "").strip().upper()
+        approved = "YES" if raw_approved in ("TRUE", "YES", "1") else "NO"
 
         mapped = {
             "id":             str(uuid.uuid4()),
@@ -199,6 +277,7 @@ def _import_articles(ws: gspread.Worksheet, csv_path: str) -> int:
             "source_type":    row_dict.get("source_type", "auto"),
             "published_date": pd_val,
             "status":         status,
+            "approved":       approved,
             "month_key":      month_key,
         }
         batch.append([mapped.get(h, "") for h in tab_headers])
@@ -212,10 +291,10 @@ def _import_articles(ws: gspread.Worksheet, csv_path: str) -> int:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="KVN Google Sheets one-time setup.")
-    parser.add_argument("--keywords-csv",  required=True, help="Path to Keywords CSV export")
-    parser.add_argument("--glossary-csv",  required=True, help="Path to Glossary CSV export")
-    parser.add_argument("--articles-csv",  default=None,  help="(Optional) Path to Articles CSV export")
-    parser.add_argument("--sheets-id",     default=None,  help="Existing Sheets ID (skip creation)")
+    parser.add_argument("--keywords-csv",  default=None, help="(Optional) Path to Keywords CSV export")
+    parser.add_argument("--glossary-csv",  default=None, help="(Optional) Path to Glossary CSV export")
+    parser.add_argument("--articles-csv",  default=None, help="(Optional) Path to Articles CSV export")
+    parser.add_argument("--sheets-id",     default=None, help="Existing Sheets ID (skip creation)")
     parser.add_argument("--share-email",   default=COMMANDER_EMAIL, help="Email to grant editor access")
     args = parser.parse_args()
 
@@ -227,21 +306,32 @@ def main() -> None:
 
     creds = Credentials.from_service_account_info(json.loads(sa_json_raw), scopes=SCOPES)
     client = gspread.authorize(creds)
-    print("✓ Authenticated with Google.")
+    print("Authenticated with Google.")
 
     # ── Open or create spreadsheet ──
     if args.sheets_id:
         spreadsheet = client.open_by_key(args.sheets_id)
-        print(f"✓ Opened existing spreadsheet: {spreadsheet.title}")
+        print(f"Opened existing spreadsheet: {spreadsheet.title}")
     else:
-        spreadsheet = client.create("KVN Master Data")
-        # Share with Commander
-        spreadsheet.share(args.share_email, perm_type="user", role="writer")
-        print(f"✓ Created 'KVN Master Data' spreadsheet.")
-        print(f"  Shared with {args.share_email}.")
+        # Use Sheets API v4 spreadsheets.create directly — does NOT require Drive API.
+        # gspread's client.create() calls Drive API which may not be enabled.
+        creds.refresh(GoogleRequest())
+        create_resp = requests.post(
+            "https://sheets.googleapis.com/v4/spreadsheets",
+            headers={"Authorization": f"Bearer {creds.token}"},
+            json={"properties": {"title": SPREADSHEET_NAME}},
+            timeout=30,
+        )
+        create_resp.raise_for_status()
+        new_id = create_resp.json()["spreadsheetId"]
+        spreadsheet = client.open_by_key(new_id)
+        print(f"Created '{SPREADSHEET_NAME}' spreadsheet via Sheets API.")
+        print(f"  NOTE: sharing with {args.share_email} requires Drive API.")
+        print(f"  Open the URL below and share manually if needed.")
+        print(f"  (Or enable Drive API on project velvet-trade-watch to auto-share.)")
 
-    print(f"\n📋 Sheets ID: {spreadsheet.id}")
-    print(f"   URL: https://docs.google.com/spreadsheets/d/{spreadsheet.id}/edit\n")
+    print(f"\nSheets ID: {spreadsheet.id}")
+    print(f"URL: https://docs.google.com/spreadsheets/d/{spreadsheet.id}/edit\n")
 
     # ── Create tabs ──
     print("Setting up tabs...")
@@ -255,29 +345,41 @@ def main() -> None:
     except gspread.exceptions.WorksheetNotFound:
         pass
 
-    # articles tab — id column added at front
-    # ARTICLES_HEADERS already includes 'id' as the last entry (moved there in Phase 4).
-    # No splice needed; pass the list as-is.
+    # articles tab (ARTICLES_HEADERS already includes 'id' as the last entry)
     articles_ws = _ensure_tab(spreadsheet, "articles", ARTICLES_HEADERS)
-    keywords_ws = _ensure_tab(spreadsheet, "keywords",  ["id"] + KEYWORDS_HEADERS)
-    glossary_ws = _ensure_tab(spreadsheet, "glossary",  ["id"] + GLOSSARY_HEADERS)
+    keywords_ws = _ensure_tab(spreadsheet, "keywords", ["id"] + KEYWORDS_HEADERS)
+    glossary_ws = _ensure_tab(spreadsheet, "glossary", ["id"] + GLOSSARY_HEADERS)
     _ensure_tab(spreadsheet, "reports",   ["id"] + REPORTS_HEADERS)
 
-    # ── Import Keywords ──
-    print(f"\nImporting Keywords from: {args.keywords_csv}")
-    kw_count = _import_keywords(keywords_ws, args.keywords_csv)
-    print(f"  ✓ {kw_count} keywords imported.")
+    # ignored_urls tab — 50 rows only (avoids the 900-empty-row issue)
+    _ensure_tab(spreadsheet, "ignored_urls", IGNORED_URLS_HEADERS, rows=50)
 
-    # ── Import Glossary ──
-    print(f"\nImporting Glossary from: {args.glossary_csv}")
-    gl_count = _import_glossary(glossary_ws, args.glossary_csv)
-    print(f"  ✓ {gl_count} glossary terms imported.")
+    # ── Data validation ──
+    print("\nApplying data validation...")
 
-    # ── Import Articles (optional) ──
+    # approved column: index 0 in ARTICLES_HEADERS
+    approved_col = ARTICLES_HEADERS.index("approved")
+    _add_data_validation(spreadsheet, articles_ws, approved_col, APPROVED_VALUES)
+
+    # status column: index 2 in ARTICLES_HEADERS
+    status_col = ARTICLES_HEADERS.index("status")
+    _add_data_validation(spreadsheet, articles_ws, status_col, STATUS_VALUES)
+
+    # ── Optional imports ──
+    if args.keywords_csv:
+        print(f"\nImporting Keywords from: {args.keywords_csv}")
+        kw_count = _import_keywords(keywords_ws, args.keywords_csv)
+        print(f"  {kw_count} keywords imported.")
+
+    if args.glossary_csv:
+        print(f"\nImporting Glossary from: {args.glossary_csv}")
+        gl_count = _import_glossary(glossary_ws, args.glossary_csv)
+        print(f"  {gl_count} glossary terms imported.")
+
     if args.articles_csv:
         print(f"\nImporting Articles from: {args.articles_csv}")
         ar_count = _import_articles(articles_ws, args.articles_csv)
-        print(f"  ✓ {ar_count} published articles imported.")
+        print(f"  {ar_count} published articles imported.")
 
     # ── Final instructions ──
     print("\n" + "=" * 60)
@@ -288,11 +390,10 @@ def main() -> None:
     print(f"\nURL:")
     print(f"  https://docs.google.com/spreadsheets/d/{spreadsheet.id}/edit")
     print(f"\nNext steps:")
-    print("  1. Register KVN_SHEETS_ID in GitHub Secrets (wkdjk/korea-velvet-news)")
-    print("  2. Register GOOGLE_SERVICE_ACCOUNT_JSON (same as VTW)")
-    print("  3. Register GMAIL_APP_PASSWORD for monthly email")
-    print("  4. Update local .env file")
-    print("  5. Run: python scripts/collect.py  (test collection)")
+    print("  1. Run: PYTHONPATH=. python scripts/migrate_kvn_sheets.py")
+    print("  2. Update KVN_SHEETS_ID in .env and GitHub Secrets")
+    print("  3. Open the new sheet → Extensions → Apps Script → paste kvn_apps_script.gs")
+    print("  4. Run createKVNForm(), then installTriggers()")
 
 
 if __name__ == "__main__":

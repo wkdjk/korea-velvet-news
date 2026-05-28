@@ -32,7 +32,7 @@ function createKVNForm() {
     .setRequired(true)
     .setChoiceValues([
       'Article URL / 기사 URL',
-      'Direct text / 직접 텍스트',
+      'Direct text / 직접 입력 텍스트',
       'Photo Drive URL / 사진 Drive URL',
     ]);
 
